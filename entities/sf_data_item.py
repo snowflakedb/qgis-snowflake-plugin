@@ -4,7 +4,7 @@ from ..helpers.utils import (
     on_handle_error,
     remove_connection,
 )
-from ..providers.sf_data_source_provider import SFDataProvider
+from ..providers.sf_data_provider import SFDataProvider
 from ..tasks.sf_convert_column_to_layer_task import SFConvertColumnToLayerTask
 from ..ui.sf_connection_string_dialog import SFConnectionStringDialog
 from PyQt5.QtCore import pyqtSignal

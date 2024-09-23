@@ -1,6 +1,6 @@
 import typing
 from ..helpers.utils import get_authentification_information, get_qsettings
-from ..providers.sf_data_source_provider import SFDataProvider
+from ..providers.sf_data_provider import SFDataProvider
 from qgis.core import QgsTask
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtCore import QVariant

@@ -34,7 +34,16 @@ import os
 import sys
 import inspect
 
-from qgis.core import QgsProcessingAlgorithm, QgsApplication
+from qgis.core import (
+    QgsProcessingAlgorithm,
+    QgsApplication,
+    QgsProviderRegistry,
+    QgsProviderMetadata,
+)
+
+from .providers.sf_vector_data_provider_test import SFVectorDataProviderTest
+
+from .providers.sf_vector_data_provider import SFVectorDataProvider
 
 from .providers.sf_data_item_provider import SFDataItemProvider
 
@@ -63,6 +72,19 @@ class QGISConnectorSnowflakePlugin(object):
 
         sf_data_item_provider = SFDataItemProvider("dipk", "Snowflake")
         QgsApplication.dataItemProviderRegistry().addProvider(sf_data_item_provider)
+
+        def createSFVectorDataProvider(
+            uri: str, options, flags
+        ) -> SFVectorDataProviderTest:
+            # return SFVectorDataProvider(uri)
+            return SFVectorDataProviderTest(uri)
+
+        provider_metadata = QgsProviderMetadata(
+            key="SFVectorDataProvider",
+            description="Snowflake Vector Data Provider",
+            library_or_create_func=createSFVectorDataProvider,
+        )
+        QgsProviderRegistry.instance().registerProvider(provider_metadata)
 
     def initGui(self):
         self.initProcessing()
