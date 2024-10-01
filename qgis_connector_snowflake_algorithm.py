@@ -22,20 +22,30 @@
  ***************************************************************************/
 """
 
-__author__ = 'Snowflake'
-__date__ = '2024-08-07'
-__copyright__ = '(C) 2024 by Snowflake'
+__author__ = "Snowflake"
+__date__ = "2024-08-07"
+__copyright__ = "(C) 2024 by Snowflake"
 
 # This will get replaced with a git SHA1 when you do a git archive
 
-__revision__ = '$Format:%H$'
+__revision__ = "$Format:%H$"
 
-from qgis.PyQt.QtCore import QCoreApplication
-from qgis.core import (QgsProcessing,
-                       QgsFeatureSink,
-                       QgsProcessingAlgorithm,
-                       QgsProcessingParameterFeatureSource,
-                       QgsProcessingParameterFeatureSink)
+import json
+from qgis.PyQt.QtCore import QCoreApplication, QByteArray
+from qgis.core import (
+    QgsProcessing,
+    QgsProcessingAlgorithm,
+    QgsProcessingParameterFeatureSource,
+    QgsProcessingParameterString,
+)
+
+from .entities.sf_dynamic_connection_combo_box_widget import (
+    DynamicConnectionComboBoxWidget,
+)
+
+from .providers.sf_data_source_provider import SFDataProvider
+
+from .helpers.utils import get_authentification_information, get_qsettings
 
 
 class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
@@ -55,9 +65,13 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
     # Constants used to refer to parameters and outputs. They will be
     # used when calling the algorithm from another algorithm, or when
     # calling from the QGIS console.
-
-    OUTPUT = 'OUTPUT'
-    INPUT = 'INPUT'
+    DATABASE = "DATABASE"
+    OUTPUT = "OUTPUT"
+    INPUT = "INPUT"
+    FIRST_COMBO = "FIRST_COMBO"
+    SECOND_COMBO = "SECOND_COMBO"
+    CONNECTION_DYN_CB = "CONNECTION_DYN_CB"
+    GEOMETRY_COLUMN = "GEOMETRY_COLUMN"
 
     def initAlgorithm(self, config):
         """
@@ -67,21 +81,28 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
 
         # We add the input vector features source. It can have any kind of
         # geometry.
+        self.settings = get_qsettings()
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT,
-                self.tr('Input layer'),
-                [QgsProcessing.TypeVectorAnyGeometry]
+                self.tr("Input layer"),
+                [QgsProcessing.TypeVectorAnyGeometry],
             )
         )
 
-        # We add a feature sink in which to store our processed features (this
-        # usually takes the form of a newly created vector layer when the
-        # algorithm is run in QGIS).
+        param = QgsProcessingParameterString(
+            self.CONNECTION_DYN_CB, "Connection (connection name)"
+        )
+        param.setMetadata(
+            {"widget_wrapper": {"class": DynamicConnectionComboBoxWidget}}
+        )
+        self.addParameter(param)
+
         self.addParameter(
-            QgsProcessingParameterFeatureSink(
-                self.OUTPUT,
-                self.tr('Output layer')
+            QgsProcessingParameterString(
+                self.GEOMETRY_COLUMN,
+                "Geometry Column",
+                defaultValue="",  # Optional default value
             )
         )
 
@@ -89,29 +110,50 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         """
         Here is where the processing itself takes place.
         """
+        selected_connection, selected_database, selected_schema, selected_table = (
+            json.loads(
+                self.parameterAsString(parameters, self.CONNECTION_DYN_CB, context)
+            )
+        )
+        geom_column = self.parameterAsString(parameters, self.GEOMETRY_COLUMN, context)
+
+        auth_information = get_authentification_information(
+            self.settings, selected_connection
+        )
+        self.sf_data_provider = SFDataProvider(auth_information)
 
         # Retrieve the feature source and sink. The 'dest_id' variable is used
         # to uniquely identify the feature sink, and must be included in the
         # dictionary returned by the processAlgorithm function.
         source = self.parameterAsSource(parameters, self.INPUT, context)
-        (sink, dest_id) = self.parameterAsSink(parameters, self.OUTPUT,
-                context, source.fields(), source.wkbType(), source.sourceCrs())
+        # (sink, dest_id) = self.parameterAsSink(parameters, self.OUTPUT,
+        #         context, source.fields(), source.wkbType(), source.sourceCrs())
 
         # Compute the number of steps to display within the progress bar and
         # get features from source
         total = 100.0 / source.featureCount() if source.featureCount() else 0
         features = source.getFeatures()
 
+        query = f"INSERT INTO {selected_database}.{selected_schema}.{selected_table} ({geom_column}) VALUES "
+        first = True
         for current, feature in enumerate(features):
             # Stop the algorithm if cancel button has been clicked
             if feedback.isCanceled():
                 break
 
-            # Add a feature in the sink
-            sink.addFeature(feature, QgsFeatureSink.FastInsert)
+            byte_array = QByteArray(feature.geometry().asWkb())
+
+            # Convert QByteArray to hexadecimal string
+            hex_string = byte_array.toHex().data().decode()
+            if first:
+                first = False
+            else:
+                query += ","
+            query += f"('{hex_string}')"
 
             # Update the progress bar
             feedback.setProgress(int(current * total))
+        self.sf_data_provider.execute_query(query, selected_connection)
 
         # Return the results of the algorithm. In this case our only result is
         # the feature sink which contains the processed features, but some
@@ -119,7 +161,8 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         # statistics, etc. These should all be included in the returned
         # dictionary, with keys matching the feature corresponding parameter
         # or output names.
-        return {self.OUTPUT: dest_id}
+        # return {self.OUTPUT: dest_id}
+        return {}
 
     def name(self):
         """
@@ -129,7 +172,7 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'Export to Snowflake'
+        return "Export to Snowflake"
 
     def displayName(self):
         """
@@ -153,10 +196,10 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         contain lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'Database'
+        return "Database"
 
     def tr(self, string):
-        return QCoreApplication.translate('Processing', string)
+        return QCoreApplication.translate("Processing", string)
 
     def createInstance(self):
         return QGISConnectorSnowflakeAlgorithm()

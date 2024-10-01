@@ -66,6 +66,19 @@ class SFDataProvider(QgsDataProvider):
         else:
             return QVariant.String
 
+    def execute_query(self, query: str, connection_name: str) -> None:
+        """
+        Executes the given query on the specified connection.
+
+        Args:
+            query (str): The query to execute.
+            connection_name (str): The name of the connection.
+
+        Raises:
+            Exception: If there is an error executing the query.
+        """
+        self.connection_manager.execute_query(connection_name, query=query)
+
     def load_data(
         self, query: str, connection_name: str, force_refresh: bool = False
     ) -> None:

@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/plugins/qgis_connector_snowflake">
+    <qresource prefix="/plugins/qgis-py-plugin">
         <file>icon.png</file>
         <file>ui/images/settings.svg</file>
         <file>ui/images/database.svg</file>
@@ -8,6 +8,12 @@
         <file>ui/images/table.svg</file>
         <file>qgis_sf_plus.png</file>
         <file>ui/images/column.svg</file>
+        <file>ui/images/mActionArrowDown.svg</file>
+        <file>ui/images/mActionArrowUp.svg</file>
+        <file>ui/images/mActionDeleteAttribute.svg</file>
+        <file>ui/images/mActionNewAttribute.svg</file>
+        <file>ui/images/mIconWarning.svg</file>
+        <file>ui/images/iconClearConsole.svg</file>
         <file>qgis_sf.png</file>
     </qresource>
 </RCC>
