@@ -31,12 +31,14 @@ __copyright__ = "(C) 2024 by Snowflake"
 __revision__ = "$Format:%H$"
 
 import json
+import typing
 from qgis.PyQt.QtCore import QCoreApplication, QByteArray
 from qgis.core import (
     QgsProcessing,
     QgsProcessingAlgorithm,
     QgsProcessingParameterFeatureSource,
     QgsProcessingParameterString,
+    QgsProcessingContext,
 )
 
 from .entities.sf_dynamic_connection_combo_box_widget import (
@@ -91,10 +93,16 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         )
 
         param = QgsProcessingParameterString(
-            self.CONNECTION_DYN_CB, "Connection (connection name)"
+            self.CONNECTION_DYN_CB,
+            "Connection (connection name)",
+            optional=False,
+            defaultValue="",
         )
         param.setMetadata(
-            {"widget_wrapper": {"class": DynamicConnectionComboBoxWidget}}
+            {
+                "widget_wrapper": {"class": DynamicConnectionComboBoxWidget},
+                "required": True,
+            }
         )
         self.addParameter(param)
 
@@ -110,17 +118,64 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         """
         Here is where the processing itself takes place.
         """
+        geom_column = self.parameterAsString(parameters, self.GEOMETRY_COLUMN, context)
+
         selected_connection, selected_database, selected_schema, selected_table = (
             json.loads(
                 self.parameterAsString(parameters, self.CONNECTION_DYN_CB, context)
             )
         )
-        geom_column = self.parameterAsString(parameters, self.GEOMETRY_COLUMN, context)
 
         auth_information = get_authentification_information(
             self.settings, selected_connection
         )
         self.sf_data_provider = SFDataProvider(auth_information)
+        if selected_schema == "":
+            selected_schema = "PUBLIC"
+            query_search_public_schema = f"""
+                SELECT DISTINCT TABLE_SCHEMA
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE table_catalog = '{selected_database}'
+                and TABLE_SCHEMA ilike '{selected_schema}';
+            """
+            cur_search_public_schema = self.sf_data_provider.execute_query(
+                query_search_public_schema, selected_connection
+            )
+
+            if cur_search_public_schema.rowcount == 0:
+                query_create_public_schema = f"""
+                    CREATE SCHEMA {selected_schema};
+                """
+                cur_create_public_schema = self.sf_data_provider.execute_query(
+                    query_create_public_schema, selected_connection
+                )
+                cur_create_public_schema.close()
+            cur_search_public_schema.close()
+
+        if selected_table == "":
+            selected_table = self.parameterAsSource(
+                parameters, self.INPUT, context
+            ).sourceName()
+            query_search_table = f"""
+                SELECT DISTINCT TABLE_NAME
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE table_catalog = '{selected_database}'
+                and TABLE_SCHEMA ilike '{selected_schema}'
+                and TABLE_NAME ilike '{selected_table}';
+            """
+            cur_search_table = self.sf_data_provider.execute_query(
+                query_search_table, selected_connection
+            )
+
+            if cur_search_table.rowcount == 0:
+                query_create_table = f"""
+                    CREATE TABLE "{selected_database}"."{selected_schema}"."{selected_table}"({geom_column} GEOGRAPHY);
+                """
+                cur_create_table = self.sf_data_provider.execute_query(
+                    query_create_table, selected_connection
+                )
+                cur_create_table.close()
+            cur_search_table.close()
 
         # Retrieve the feature source and sink. The 'dest_id' variable is used
         # to uniquely identify the feature sink, and must be included in the
@@ -134,7 +189,7 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         total = 100.0 / source.featureCount() if source.featureCount() else 0
         features = source.getFeatures()
 
-        query = f"INSERT INTO {selected_database}.{selected_schema}.{selected_table} ({geom_column}) VALUES "
+        query = f'INSERT INTO "{selected_database}"."{selected_schema}"."{selected_table}" ({geom_column}) VALUES '
         first = True
         for current, feature in enumerate(features):
             # Stop the algorithm if cancel button has been clicked
@@ -153,7 +208,9 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
 
             # Update the progress bar
             feedback.setProgress(int(current * total))
-        self.sf_data_provider.execute_query(query, selected_connection)
+        print(query)
+        cur = self.sf_data_provider.execute_query(query, selected_connection)
+        cur.close()
 
         # Return the results of the algorithm. In this case our only result is
         # the feature sink which contains the processed features, but some
@@ -203,3 +260,19 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
 
     def createInstance(self):
         return QGISConnectorSnowflakeAlgorithm()
+
+    def checkParameterValues(
+        self, parameters: typing.Dict[str, typing.Any], context: "QgsProcessingContext"
+    ) -> typing.Tuple[bool, str]:
+        """
+        Check if the parameters are valid and return a tuple with a boolean and a message
+        """
+        geom_column = self.parameterAsString(parameters, self.GEOMETRY_COLUMN, context)
+        selected_connection, _, _, _ = json.loads(
+            self.parameterAsString(parameters, self.CONNECTION_DYN_CB, context)
+        )
+        if geom_column == "":
+            return False, "Geometry Column can not be empty!"
+        if selected_connection == "":
+            return False, "Please select a connection!"
+        return True, ""
