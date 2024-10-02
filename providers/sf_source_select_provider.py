@@ -65,4 +65,4 @@ class SFSourceSelectProvider(QgsSourceSelectProvider):
         :return: The icon for the source select provider.
         :rtype: QIcon
         """
-        return QIcon(":/plugins/qgis_connector_snowflake/qgis_sf_plus.png")
+        return QIcon(":/plugins/qgis-py-plugin/qgis_sf_plus.png")

@@ -170,7 +170,7 @@
        </property>
        <property name="icon">
         <iconset resource="../resources.qrc">
-         <normaloff>:/plugins/test_plugin/ui/images/settings.svg</normaloff>:/plugins/test_plugin/ui/images/settings.svg</iconset>
+         <normaloff>:/plugins/qgis-py-plugin/ui/images/settings.svg</normaloff>:/plugins/qgis-py-plugin/ui/images/settings.svg</iconset>
        </property>
        <property name="popupMode">
         <enum>QToolButton::MenuButtonPopup</enum>

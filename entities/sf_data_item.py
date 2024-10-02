@@ -169,7 +169,7 @@ class SFDataItem(QgsDataItem):
             path=f"{self.path()}/{name}",
             provider_key=self.providerKey(),
             item_type=type,
-            icon_path=f":/plugins/qgis_connector_snowflake/ui/images/{type}.svg",
+            icon_path=f":/plugins/qgis-py-plugin/ui/images/{type}.svg",
             connection_name=connection_name,
         )
 
@@ -228,6 +228,13 @@ class SFDataItem(QgsDataItem):
             self.refresh_action.triggered.connect(self.on_refresh_action_triggered)
             action_list.append(self.refresh_action)
 
+            if self.item_type == "schema":
+                self.new_table_action = QAction("New Table...", None)
+                self.new_table_action.triggered.connect(
+                    self.on_new_table_action_triggered
+                )
+                action_list.append(self.new_table_action)
+
             if self.item_type == "connection":
                 self.edit_connection_action = QAction("Edit Connection", None)
                 self.edit_connection_action.triggered.connect(
@@ -240,6 +247,19 @@ class SFDataItem(QgsDataItem):
                     self.on_remove_connection_action_triggered
                 )
                 action_list.append(self.remove_connection_action)
+
+                self.new_schema_action = QAction("New Schema...", None)
+                self.new_schema_action.triggered.connect(
+                    self.on_new_schema_action_triggered
+                )
+                action_list.append(self.new_schema_action)
+
+            if self.item_type != "root":
+                self.execute_sql_action = QAction("Execute SQL...", None)
+                self.execute_sql_action.triggered.connect(
+                    self.on_execute_sql_action_triggered
+                )
+                action_list.append(self.execute_sql_action)
 
             if self.item_type == "root":
                 self.new_connection_action = QAction("New Connection", None)
@@ -255,6 +275,50 @@ class SFDataItem(QgsDataItem):
                 "Data Item Actions Creation Error",
                 f"SFDataItem - Data item actions creation failed.\n\nExtended error information:\n{str(e)}",
             )
+
+    def on_execute_sql_action_triggered(self) -> None:
+        """
+        Opens a dialog for executing SQL queries on the Snowflake database.
+        The dialog allows the user to enter the SQL query to be executed on the Snowflake database.
+        After the user enters the SQL query and confirms, the query is executed and the connections are handled accordingly.
+        """
+        from ..ui.sf_sql_query_dialog import SFSQLQueryDialog
+
+        sf_sql_query_dialog = SFSQLQueryDialog(self.connection_name, None)
+        sf_sql_query_dialog.update_connections_signal.connect(
+            self.on_update_connections_handle
+        )
+        sf_sql_query_dialog.exec_()
+
+    def on_new_schema_action_triggered(self) -> None:
+        """
+        Opens a dialog for creating a new schema in the Snowflake database.
+        The dialog allows the user to enter the necessary information for creating a new schema in the Snowflake database.
+        After the user enters the schema details and confirms, the schema is created and the connections are handled accordingly.
+        """
+        from ..ui.sf_new_schema_dialog import SFNewSchemaDialog
+
+        sf_connection_string_dialog = SFNewSchemaDialog(self.connection_name, None)
+        sf_connection_string_dialog.update_connections_signal.connect(
+            self.on_update_connections_handle
+        )
+        sf_connection_string_dialog.exec_()
+
+    def on_new_table_action_triggered(self) -> None:
+        """
+        Opens a dialog for creating a new table in the Snowflake database.
+        The dialog allows the user to enter the necessary information for creating a new table in the Snowflake database.
+        After the user enters the table details and confirms, the table is created and the connections are handled accordingly.
+        """
+        from ..ui.sf_new_table_dialog import SFNewTableDialog
+
+        sf_connection_string_dialog = SFNewTableDialog(
+            self.name(), self.connection_name, None
+        )
+        sf_connection_string_dialog.update_connections_signal.connect(
+            self.on_update_connections_handle
+        )
+        sf_connection_string_dialog.exec_()
 
     def on_new_connection_action_triggered(self) -> None:
         """

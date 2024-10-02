@@ -6,6 +6,7 @@ from qgis.core import (
     QgsField,
     QgsFields,
 )
+import snowflake.connector
 
 
 class SFDataProvider(QgsDataProvider):
@@ -65,6 +66,21 @@ class SFDataProvider(QgsDataProvider):
             return self.TYPE_CODE_DICT[code_type]["qvariant_type"]
         else:
             return QVariant.String
+
+    def execute_query(
+        self, query: str, connection_name: str
+    ) -> snowflake.connector.cursor.SnowflakeCursor:
+        """
+        Executes the given query on the specified connection.
+
+        Args:
+            query (str): The query to execute.
+            connection_name (str): The name of the connection.
+
+        Raises:
+            Exception: If there is an error executing the query.
+        """
+        return self.connection_manager.execute_query(connection_name, query=query)
 
     def load_data(
         self, query: str, connection_name: str, force_refresh: bool = False
