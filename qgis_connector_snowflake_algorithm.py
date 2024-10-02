@@ -189,6 +189,10 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         total = 100.0 / source.featureCount() if source.featureCount() else 0
         features = source.getFeatures()
 
+        if source.featureCount() == 0:
+            feedback.setProgress(100)
+            return {}
+
         query = f'INSERT INTO "{selected_database}"."{selected_schema}"."{selected_table}" ({geom_column}) VALUES '
         first = True
         for current, feature in enumerate(features):
@@ -267,12 +271,63 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         """
         Check if the parameters are valid and return a tuple with a boolean and a message
         """
-        geom_column = self.parameterAsString(parameters, self.GEOMETRY_COLUMN, context)
-        selected_connection, _, _, _ = json.loads(
-            self.parameterAsString(parameters, self.CONNECTION_DYN_CB, context)
-        )
-        if geom_column == "":
-            return False, "Geometry Column can not be empty!"
-        if selected_connection == "":
-            return False, "Please select a connection!"
-        return True, ""
+        try:
+            geom_column = self.parameterAsString(
+                parameters, self.GEOMETRY_COLUMN, context
+            )
+            selected_connection, selected_database, selected_schema, selected_table = (
+                json.loads(
+                    self.parameterAsString(parameters, self.CONNECTION_DYN_CB, context)
+                )
+            )
+            if selected_schema == "":
+                selected_schema = "PUBLIC"
+            if selected_table == "":
+                selected_table = self.parameterAsSource(
+                    parameters, self.INPUT, context
+                ).sourceName()
+            if geom_column == "":
+                return False, "Geometry Column can not be empty!"
+
+            if selected_connection == "":
+                return False, "Please select a connection!"
+
+            auth_information = get_authentification_information(
+                self.settings, selected_connection
+            )
+            self.sf_data_provider = SFDataProvider(auth_information)
+
+            query_select_columns = f"""
+                SELECT DISTINCT COLUMN_NAME
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_CATALOG = '{selected_database}'
+                AND TABLE_SCHEMA ILIKE '{selected_schema}'
+                AND TABLE_NAME ILIKE '{selected_table}';
+            """
+            cur_select_columns = self.sf_data_provider.execute_query(
+                query_select_columns, selected_connection
+            )
+            available_columns = []
+            column_found = False
+            for row in cur_select_columns.fetchall():
+                if row[0] == geom_column:
+                    cur_select_columns.close()
+                    column_found = True
+                    return True, ""
+                else:
+                    available_columns.append(row[0])
+
+            if not column_found:
+                cur_select_columns.close()
+                return (
+                    False,
+                    f"Given Geometry Column: {geom_column} does not exist! Available columns: {', '.join(available_columns)}",
+                )
+            cur_select_columns.close()
+
+            return True, ""
+        except Exception as e:
+            return (
+                False,
+                f"There was an error while checking the parameter values. Error: {str(e)}",
+            )
