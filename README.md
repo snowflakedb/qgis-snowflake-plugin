@@ -4,7 +4,7 @@
 
 This package includes the Snowflake Connector for QGIS.
 
-The Snowflake Connector for QGIS provides an interface for open-source GIS application QGIS that can connect to Snowflake and perform all standard operations. It provides a connection via Python driver.
+The Snowflake Connector for QGIS provides an interface for open-source GIS application QGIS that can connect to Snowflake and perform all standard operations. It provides a connection via [Python connector](https://github.com/snowflakedb/snowflake-connector-python).
 
 
 Snowflake Documentation is available at:
