@@ -1,26 +1,13 @@
-Plugin Builder Results
+# Snowflake Connector for QGIS
 
-Your plugin QGISConnectorSnowflake was created in:
-    /Users/ecuberojimenez/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins/qgis_connector_snowflake
+[![License Apache-2.0](https://img.shields.io/:license-MIT-brightgreen.svg)](https://spdx.org/licenses/MIT.html)
 
-Your QGIS plugin directory is located at:
-    /Users/ecuberojimenez/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins
+This package includes the Snowflake Connector for QGIS.
 
-What's Next:
+The Snowflake Connector for QGIS provides an interface for open-source GIS application QGIS that can connect to Snowflake and perform all standard operations. It provides a connection via Python driver.
 
-  * Copy the entire directory containing your new plugin to the QGIS plugin
-    directory
 
-  * Run the tests (``make test``)
+Snowflake Documentation is available at:
+https://docs.snowflake.com/
 
-  * Test the plugin by enabling it in the QGIS plugin manager
-
-  * Customize it by editing the implementation file: ``qgis_connector_snowflake.py``
-
-  * You can use the Makefile to compile your Ui and resource files when
-    you make changes. This requires GNU make (gmake)
-
-For more information, see the PyQGIS Developer Cookbook at:
-http://www.qgis.org/pyqgis-cookbook/index.html
-
-(C) 2011-2018 GeoApt LLC - geoapt.com
+Feel free to [file an issue](https://github.com/snowflakedb/qgis-snowflake-plugin/issues) or submit a PR here for general cases. 
