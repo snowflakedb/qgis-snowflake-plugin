@@ -157,7 +157,7 @@ class SFNewTableDialog(QDialog, FORM_CLASS_SFCS):
                     SELECT DISTINCT TABLE_SCHEMA
                     FROM INFORMATION_SCHEMA.COLUMNS
                     WHERE table_catalog = '{auth_information["database"]}'
-                    ORDER BY TABLE_SCHEMA;
+                    ORDER BY TABLE_SCHEMA
                 """
 
         sf_data_provider = SFDataProvider(auth_information)

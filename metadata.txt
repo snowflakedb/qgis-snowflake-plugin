@@ -12,8 +12,8 @@ email=erick.cuberojimenez@snowflake.com
 
 about=This plugin imports Snowflake spatial data as layers
 
-tracker=https://snowflakecomputing.atlassian.net/browse/SNOW-1519733
-repository=https://github.com/snowflakecorp/
+tracker=https://github.com/snowflakedb/qgis-snowflake-plugin/issues
+repository=https://github.com/snowflakedb/qgis-snowflake-plugin
 # End of mandatory metadata
 
 # Recommended items:

@@ -36,6 +36,8 @@ import inspect
 
 from qgis.core import QgsProcessingAlgorithm, QgsApplication
 
+from .qgis_connector_snowflake_algorithm import QGISConnectorSnowflakeAlgorithm
+
 from .providers.sf_data_item_provider import SFDataItemProvider
 
 from .providers.sf_source_select_provider import SFSourceSelectProvider
@@ -55,32 +57,42 @@ class QGISConnectorSnowflakePlugin(object):
 
     def initProcessing(self):
         """Init Processing provider for QGIS >= 3.8."""
+        self.postgis_native_provider = QgsApplication.processingRegistry().providerById(
+            "native"
+        )
+
+        if self.postgis_native_provider:
+            self.qgis_connector_snowflake_algorithm = QGISConnectorSnowflakeAlgorithm()
+            self.postgis_native_provider.addAlgorithm(
+                self.qgis_connector_snowflake_algorithm
+            )
+
+        self.tm = QgsApplication.taskManager()
+        self.sf_source_select_provider = SFSourceSelectProvider("mssp")
+        QgsGui.sourceSelectProviderRegistry().addProvider(
+            self.sf_source_select_provider
+        )
+
+        self.sf_data_item_provider = SFDataItemProvider("dipk", "Snowflake")
+        QgsApplication.dataItemProviderRegistry().addProvider(
+            self.sf_data_item_provider
+        )
+
         self.provider = QGISConnectorSnowflakeProvider()
         QgsApplication.processingRegistry().addProvider(self.provider)
-        self.tm = QgsApplication.taskManager()
-        sf_source_select_provider = SFSourceSelectProvider("mssp")
-        QgsGui.sourceSelectProviderRegistry().addProvider(sf_source_select_provider)
-
-        sf_data_item_provider = SFDataItemProvider("dipk", "Snowflake")
-        QgsApplication.dataItemProviderRegistry().addProvider(sf_data_item_provider)
 
     def initGui(self):
         self.initProcessing()
 
     def unload(self):
         QgsApplication.processingRegistry().removeProvider(self.provider)
-
-        my_provider_list = QgsGui.sourceSelectProviderRegistry().providersByKey("mssp")
-        if len(my_provider_list) > 0:
-            QgsGui.sourceSelectProviderRegistry().removeProvider(my_provider_list[0])
-        providers_list = QgsApplication.dataItemProviderRegistry().providers()
-        found_provider = None
-        for prov in providers_list:
-            try:
-                if isinstance(prov, SFDataItemProvider):
-                    found_provider = prov
-                    break
-            except Exception as _:
-                pass
-        if found_provider is not None:
-            QgsApplication.dataItemProviderRegistry().removeProvider(found_provider)
+        self.postgis_native_provider.algorithms().remove(
+            self.qgis_connector_snowflake_algorithm
+        )
+        self.postgis_native_provider.refreshAlgorithms()
+        QgsGui.sourceSelectProviderRegistry().removeProvider(
+            self.sf_source_select_provider
+        )
+        QgsApplication.dataItemProviderRegistry().removeProvider(
+            self.sf_data_item_provider
+        )

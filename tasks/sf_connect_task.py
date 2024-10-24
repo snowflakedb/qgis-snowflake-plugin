@@ -1,6 +1,7 @@
 import typing
+
+from ..helpers.data_base import get_features_iterator
 from ..helpers.utils import get_authentification_information, get_qsettings
-from ..providers.sf_data_source_provider import SFDataProvider
 from qgis.core import QgsTask
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtCore import QVariant
@@ -32,7 +33,7 @@ class SFConnectTask(QgsTask):
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_CATALOG = '{self.auth_information["database"].upper()}'
             AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY')
-            ORDER BY TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE;
+            ORDER BY TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE
             """
             self.connection_name = connection_name
         except Exception as e:
@@ -49,9 +50,9 @@ class SFConnectTask(QgsTask):
             bool: True if the task is executed successfully, False otherwise.
         """
         try:
-            self.sf_data_provider = SFDataProvider(self.auth_information)
-            self.sf_data_provider.load_data(self.query, self.connection_name)
-            feature_iterator = self.sf_data_provider.get_feature_iterator()
+            feature_iterator = get_features_iterator(
+                self.auth_information, self.query, self.connection_name
+            )
             current_schema = None
             current_item = None
             self.rows_items: typing.List[QStandardItem] = []

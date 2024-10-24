@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
 )
 
-from ..providers.sf_data_source_provider import SFDataProvider
+from ..helpers.data_base import get_schema_iterator, get_table_iterator
 
 from ..helpers.utils import get_authentification_information, get_qsettings
 from processing.gui.wrappers import WidgetWrapper
@@ -56,21 +56,9 @@ class DynamicConnectionComboBoxWidget(WidgetWrapper):
             self.tables_cb.clear()
             if selected_connection == "" or selected_schema == "":
                 return
-            auth_information = get_authentification_information(
-                self.settings, selected_connection
+            feature_iterator = get_table_iterator(
+                self.settings, selected_connection, selected_schema
             )
-            sf_data_provider = SFDataProvider(auth_information)
-
-            query = f"""
-                SELECT DISTINCT TABLE_NAME
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE table_catalog = '{auth_information["database"]}'
-                AND TABLE_SCHEMA = '{selected_schema}'
-                ORDER BY TABLE_NAME;
-            """
-
-            sf_data_provider.load_data(query, selected_connection)
-            feature_iterator = sf_data_provider.get_feature_iterator()
             self.tables_cb.addItem("")
             for feat in feature_iterator:
                 self.tables_cb.addItem(feat.attribute("TABLE_NAME"))
@@ -89,23 +77,10 @@ class DynamicConnectionComboBoxWidget(WidgetWrapper):
             self.tables_cb.clear()
             if selected_connection == "":
                 return
-            auth_information = get_authentification_information(
-                self.settings, selected_connection
-            )
-            sf_data_provider = SFDataProvider(auth_information)
-
-            query = f"""
-                SELECT DISTINCT TABLE_SCHEMA
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE table_catalog = '{auth_information["database"]}'
-                ORDER BY TABLE_SCHEMA;
-            """
-
-            sf_data_provider.load_data(query, selected_connection)
-            feature_iterator = sf_data_provider.get_feature_iterator()
+            feature_iterator = get_schema_iterator(self.settings, selected_connection)
             self.schemas_cb.addItem("")
             for feat in feature_iterator:
-                self.schemas_cb.addItem(feat.attribute("TABLE_SCHEMA"))
+                self.schemas_cb.addItem(feat.attribute("SCHEMA_NAME"))
             feature_iterator.close()
         except Exception as e:
             QMessageBox.information(

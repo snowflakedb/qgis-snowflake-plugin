@@ -22,20 +22,20 @@
  ***************************************************************************/
 """
 
-__author__ = 'Snowflake'
-__date__ = '2024-08-07'
-__copyright__ = '(C) 2024 by Snowflake'
+__author__ = "Snowflake"
+__date__ = "2024-08-07"
+__copyright__ = "(C) 2024 by Snowflake"
 
 # This will get replaced with a git SHA1 when you do a git archive
 
-__revision__ = '$Format:%H$'
+__revision__ = "$Format:%H$"
 
 from qgis.core import QgsProcessingProvider
 from .qgis_connector_snowflake_algorithm import QGISConnectorSnowflakeAlgorithm
+from qgis.PyQt.QtGui import QIcon
 
 
 class QGISConnectorSnowflakeProvider(QgsProcessingProvider):
-
     def __init__(self):
         """
         Default constructor.
@@ -63,7 +63,7 @@ class QGISConnectorSnowflakeProvider(QgsProcessingProvider):
         string should be a unique, short, character only string, eg "qgis" or
         "gdal". This string should not be localised.
         """
-        return 'Export Snowflake Provider'
+        return "Export Snowflake Provider"
 
     def name(self):
         """
@@ -72,14 +72,14 @@ class QGISConnectorSnowflakeProvider(QgsProcessingProvider):
 
         This string should be short (e.g. "Lastools") and localised.
         """
-        return self.tr('Export Snowflake Provider')
+        return self.tr("Export Snowflake Provider")
 
     def icon(self):
         """
         Should return a QIcon which is used for your provider inside
         the Processing toolbox.
         """
-        return QgsProcessingProvider.icon(self)
+        return QIcon(":/plugins/qgis-py-plugin/ui/images/qgis_logo.svg")
 
     def longName(self):
         """
