@@ -38,10 +38,11 @@ class SFDataItemProvider(QgsDataItemProvider):
                     type=Qgis.BrowserItemType.Field,
                     parent=parentItem,
                     name=self._name,
-                    path="/Snofwflake",
+                    path="/Snowflake",
                     provider_key=self._dataProviderKey,
                     item_type="root",
                     icon_path=":/plugins/qgis-py-plugin/qgis_sf.png",
+                    clean_name=self._name,
                 )
                 return root_data_item
         except Exception as e:

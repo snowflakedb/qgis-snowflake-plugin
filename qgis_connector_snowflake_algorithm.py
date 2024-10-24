@@ -32,13 +32,21 @@ __revision__ = "$Format:%H$"
 
 import json
 import typing
-from qgis.PyQt.QtCore import QCoreApplication, QByteArray
+from qgis.PyQt.QtCore import QCoreApplication, QByteArray, QVariant
 from qgis.core import (
     QgsProcessing,
     QgsProcessingAlgorithm,
     QgsProcessingParameterFeatureSource,
     QgsProcessingParameterString,
     QgsProcessingContext,
+    QgsVectorLayer,
+)
+
+from .helpers.data_base import (
+    create_schema,
+    create_table,
+    get_count_schemas,
+    get_count_tables,
 )
 
 from .entities.sf_dynamic_connection_combo_box_widget import (
@@ -118,7 +126,21 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         """
         Here is where the processing itself takes place.
         """
+        source = self.parameterAsSource(parameters, self.INPUT, context)
         geom_column = self.parameterAsString(parameters, self.GEOMETRY_COLUMN, context)
+
+        from urllib.parse import parse_qs, urlparse
+
+        parsed_uri = urlparse(
+            self.parameterAsVectorLayer(parameters, self.INPUT, context).source()
+        )
+        params = parse_qs(parsed_uri.query)
+
+        is_snowflake_layer = (
+            "internal_provider" in params
+            and len(params["internal_provider"]) > 0
+            and params["internal_provider"][0] == "snowflake"
+        )
 
         selected_connection, selected_database, selected_schema, selected_table = (
             json.loads(
@@ -132,55 +154,49 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         self.sf_data_provider = SFDataProvider(auth_information)
         if selected_schema == "":
             selected_schema = "PUBLIC"
-            query_search_public_schema = f"""
-                SELECT DISTINCT TABLE_SCHEMA
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE table_catalog = '{selected_database}'
-                and TABLE_SCHEMA ilike '{selected_schema}';
-            """
-            cur_search_public_schema = self.sf_data_provider.execute_query(
-                query_search_public_schema, selected_connection
+            count_schemas = get_count_schemas(
+                settings=self.settings,
+                connection_name=selected_connection,
+                data_base_name=selected_database,
+                schema_name=selected_schema,
             )
 
-            if cur_search_public_schema.rowcount == 0:
-                query_create_public_schema = f"""
-                    CREATE SCHEMA {selected_schema};
-                """
-                cur_create_public_schema = self.sf_data_provider.execute_query(
-                    query_create_public_schema, selected_connection
+            if count_schemas == 0:
+                create_schema(
+                    settings=self.settings,
+                    connection_name=selected_connection,
+                    schema_name=selected_schema,
                 )
-                cur_create_public_schema.close()
-            cur_search_public_schema.close()
 
         if selected_table == "":
             selected_table = self.parameterAsSource(
                 parameters, self.INPUT, context
             ).sourceName()
-            query_search_table = f"""
-                SELECT DISTINCT TABLE_NAME
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE table_catalog = '{selected_database}'
-                and TABLE_SCHEMA ilike '{selected_schema}'
-                and TABLE_NAME ilike '{selected_table}';
-            """
-            cur_search_table = self.sf_data_provider.execute_query(
-                query_search_table, selected_connection
-            )
 
-            if cur_search_table.rowcount == 0:
-                query_create_table = f"""
-                    CREATE TABLE "{selected_database}"."{selected_schema}"."{selected_table}"({geom_column} GEOGRAPHY);
-                """
-                cur_create_table = self.sf_data_provider.execute_query(
-                    query_create_table, selected_connection
+            count_table = get_count_tables(
+                connection_name=selected_connection,
+                database_name=selected_database,
+                schema_name=selected_schema,
+                table_name=selected_table,
+            )
+            if count_table == 0:
+                query_create_table = self.get_create_table_query(
+                    geom_column=geom_column,
+                    source=source,
+                    is_snowflake_layer=is_snowflake_layer,
+                    database_name=selected_database,
+                    schema_name=selected_schema,
+                    table_name=selected_table,
                 )
-                cur_create_table.close()
-            cur_search_table.close()
+
+                create_table(
+                    connection_name=selected_connection, query=query_create_table
+                )
 
         # Retrieve the feature source and sink. The 'dest_id' variable is used
         # to uniquely identify the feature sink, and must be included in the
         # dictionary returned by the processAlgorithm function.
-        source = self.parameterAsSource(parameters, self.INPUT, context)
+        # source = self.parameterAsSource(parameters, self.INPUT, context)
         # (sink, dest_id) = self.parameterAsSink(parameters, self.OUTPUT,
         #         context, source.fields(), source.wkbType(), source.sourceCrs())
 
@@ -191,11 +207,27 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
 
         if source.featureCount() == 0:
             feedback.setProgress(100)
-            return {}
+            return {"Rows Inserted": 0}
 
-        query = f'INSERT INTO "{selected_database}"."{selected_schema}"."{selected_table}" ({geom_column}) VALUES '
+        query_columns = f"{geom_column}"
+
+        for field in source.fields():
+            if field.name().lower() == geom_column.lower():
+                continue
+            query_columns += f",{field.name()}"
+
+        query_base = f'INSERT INTO "{selected_database}"."{selected_schema}"."{selected_table}" ({query_columns}) VALUES '
+        query = query_base
         first = True
+        executed = False
         for current, feature in enumerate(features):
+            if current != 0 and current % 5000 == 0:
+                cur = self.sf_data_provider.execute_query(query, selected_connection)
+                cur.close()
+                query = query_base
+                first = True
+                executed = True
+            executed = False
             # Stop the algorithm if cancel button has been clicked
             if feedback.isCanceled():
                 break
@@ -208,13 +240,55 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
                 first = False
             else:
                 query += ","
-            query += f"('{hex_string}')"
+
+            query_values = f"('{hex_string}'"
+
+            for field in source.fields():
+                query_values += ","
+
+                if field.name().lower() == geom_column.lower():
+                    query_values += f"'{hex_string}'"
+                else:
+                    feat_index = feature.fieldNameIndex(field.name())
+                    feat_val = feature.attribute(feat_index)
+                    if is_snowflake_layer:
+                        if feat_val is None:
+                            query_values += "NULL"
+                        elif field.subType() == QVariant.String:
+                            feat_val = feat_val.replace("'", "\\'")
+                            query_values += f"'{feat_val}'"
+                        elif field.subType() in [
+                            QVariant.Date,
+                            QVariant.DateTime,
+                            QVariant.Time,
+                        ]:
+                            query_values += f"'{feat_val}'"
+                        else:
+                            query_values += f"{feat_val}"
+                    else:
+                        if feat_val is None:
+                            query_values += "NULL"
+                        elif field.type() == QVariant.String:
+                            feat_val = feat_val.replace("'", "\\'")
+                            query_values += f"'{feat_val}'"
+                        elif field.type() in [
+                            QVariant.Date,
+                            QVariant.DateTime,
+                            QVariant.Time,
+                        ]:
+                            query_values += f"'{feat_val}'"
+                        else:
+                            query_values += f"{feat_val}"
+            query_values += ")"
+
+            query += query_values
 
             # Update the progress bar
             feedback.setProgress(int(current * total))
-        print(query)
-        cur = self.sf_data_provider.execute_query(query, selected_connection)
-        cur.close()
+
+        if not executed:
+            cur = self.sf_data_provider.execute_query(query, selected_connection)
+            cur.close()
 
         # Return the results of the algorithm. In this case our only result is
         # the feature sink which contains the processed features, but some
@@ -223,7 +297,33 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         # dictionary, with keys matching the feature corresponding parameter
         # or output names.
         # return {self.OUTPUT: dest_id}
-        return {}
+        return {"Rows Inserted": source.featureCount()}
+
+    def get_field_type_from_code_type(self, code_type: int) -> str:
+        """
+        Get the field type from the code type.
+
+        Args:
+            code_type (int): The code type.
+
+        Returns:
+            str: The field type.
+        """
+        if code_type == QVariant.String:
+            return "TEXT"
+        if code_type == QVariant.Int:
+            return "INTEGER"
+        if code_type == QVariant.Double:
+            return "DOUBLE"
+        if code_type == QVariant.Date:
+            return "DATE"
+        if code_type == QVariant.Time:
+            return "TIME"
+        if code_type == QVariant.DateTime:
+            return "TIMESTAMP"
+        if code_type == QVariant.Bool:
+            return "BOOLEAN"
+        return "TEXT"
 
     def name(self):
         """
@@ -247,7 +347,7 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         Returns the name of the group this algorithm belongs to. This string
         should be localised.
         """
-        return self.tr(self.groupId())
+        return self.tr("Database")
 
     def groupId(self):
         """
@@ -257,7 +357,7 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         contain lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return "Database"
+        return "database"
 
     def tr(self, string):
         return QCoreApplication.translate("Processing", string)
@@ -280,9 +380,11 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
                     self.parameterAsString(parameters, self.CONNECTION_DYN_CB, context)
                 )
             )
+            selected_table_is_empty = False
             if selected_schema == "":
                 selected_schema = "PUBLIC"
             if selected_table == "":
+                selected_table_is_empty = True
                 selected_table = self.parameterAsSource(
                     parameters, self.INPUT, context
                 ).sourceName()
@@ -292,38 +394,39 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
             if selected_connection == "":
                 return False, "Please select a connection!"
 
-            auth_information = get_authentification_information(
-                self.settings, selected_connection
-            )
-            self.sf_data_provider = SFDataProvider(auth_information)
-
-            query_select_columns = f"""
-                SELECT DISTINCT COLUMN_NAME
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_CATALOG = '{selected_database}'
-                AND TABLE_SCHEMA ILIKE '{selected_schema}'
-                AND TABLE_NAME ILIKE '{selected_table}';
-            """
-            cur_select_columns = self.sf_data_provider.execute_query(
-                query_select_columns, selected_connection
-            )
-            available_columns = []
-            column_found = False
-            for row in cur_select_columns.fetchall():
-                if row[0] == geom_column:
-                    cur_select_columns.close()
-                    column_found = True
-                    return True, ""
-                else:
-                    available_columns.append(row[0])
-
-            if not column_found:
-                cur_select_columns.close()
-                return (
-                    False,
-                    f"Given Geometry Column: {geom_column} does not exist! Available columns: {', '.join(available_columns)}",
+            if not selected_table_is_empty:
+                auth_information = get_authentification_information(
+                    self.settings, selected_connection
                 )
-            cur_select_columns.close()
+                self.sf_data_provider = SFDataProvider(auth_information)
+
+                query_select_columns = f"""
+                    SELECT DISTINCT COLUMN_NAME
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_CATALOG = '{selected_database}'
+                    AND TABLE_SCHEMA ILIKE '{selected_schema}'
+                    AND TABLE_NAME ILIKE '{selected_table}'
+                """
+                cur_select_columns = self.sf_data_provider.execute_query(
+                    query_select_columns, selected_connection
+                )
+                available_columns = []
+                column_found = False
+                for row in cur_select_columns.fetchall():
+                    if row[0] == geom_column:
+                        cur_select_columns.close()
+                        column_found = True
+                        return True, ""
+                    else:
+                        available_columns.append(row[0])
+
+                if not column_found:
+                    cur_select_columns.close()
+                    return (
+                        False,
+                        f"Given Geometry Column: {geom_column} does not exist! Available columns: {', '.join(available_columns)}",
+                    )
+                cur_select_columns.close()
 
             return True, ""
         except Exception as e:
@@ -331,3 +434,41 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
                 False,
                 f"There was an error while checking the parameter values. Error: {str(e)}",
             )
+
+    def get_create_table_query(
+        self,
+        geom_column: str,
+        source: "QgsVectorLayer",
+        is_snowflake_layer: bool,
+        database_name: str,
+        schema_name: str,
+        table_name: str,
+    ) -> str:
+        """
+        Generates a SQL query string to create a table in Snowflake with the specified columns and types.
+
+        Args:
+            geom_column (str): The name of the geometry column.
+            source (QgsVectorLayer): The source vector layer containing the fields.
+            is_snowflake_layer (bool): Flag indicating if the source is a Snowflake layer.
+            database_name (str): The name of the database.
+            schema_name (str): The name of the schema.
+            table_name (str): The name of the table to be created.
+
+        Returns:
+            str: A SQL query string to create the table with the specified columns and types.
+        """
+        query_create_table_cols = f"{geom_column} GEOGRAPHY"
+        for field in source.fields():
+            if field.name().lower() == geom_column.lower():
+                continue
+            if is_snowflake_layer:
+                field_to_use = field.subType()
+            else:
+                field_to_use = field.type()
+
+            query_create_table_cols += (
+                f",{field.name()} {self.get_field_type_from_code_type(field_to_use)}"
+            )
+
+        return f"""CREATE TABLE "{database_name}"."{schema_name}"."{table_name}"({query_create_table_cols})"""

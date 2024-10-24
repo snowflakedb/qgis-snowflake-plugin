@@ -1,16 +1,12 @@
+from ..helpers.data_base import get_cursor_description
 from ..helpers.utils import get_qsettings, get_authentification_information
-from ..providers.sf_data_source_provider import SFDataProvider
+from ..helpers.layer_creation import get_layers
 from qgis.core import (
-    QgsFeature,
-    QgsField,
-    QgsGeometry,
     QgsMapLayer,
     QgsProject,
     QgsTask,
-    QgsVectorLayer,
 )
-from qgis.PyQt.QtCore import pyqtSignal, QVariant
-from typing import Dict, Union
+from qgis.PyQt.QtCore import pyqtSignal
 
 
 class SFConvertSQLQueryToLayerTask(QgsTask):
@@ -47,84 +43,41 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
             bool: True if the task is executed successfully, False otherwise.
         """
         try:
-            sf_data_provider = SFDataProvider(self.auth_information)
-            query = f"SELECT ST_ASWKB({self.geo_column_name}) FROM ({self.query})"
-            sf_data_provider.load_data(query, self.connection_name)
-            feature_iterator = sf_data_provider.get_feature_iterator()
+            cur_description = get_cursor_description(
+                auth_information=self.auth_information,
+                query=self.query,
+                connection_name=self.connection_name,
+            )
 
-            layer_dict: Dict[str, Dict[str, Union[list, QgsVectorLayer]]] = {}
-            for feat in feature_iterator:
-                column_0 = feat.attribute(0)
-                if isinstance(column_0, QVariant):
-                    if column_0.isNull():
-                        continue
-                if column_0 is None:
-                    continue
-                qgsGeometry = QgsGeometry()
-                qgsGeometry.fromWkb(column_0)
-                geometry_type_obj = qgsGeometry.wkbType()
-                geometry_type = str(geometry_type_obj).split(".")[1]
-                if geometry_type == "Unknown":
-                    continue
-                feature = QgsFeature()
-                if geometry_type not in layer_dict:
-                    if geometry_type.lower() not in [
-                        "point",
-                        "multipoint",
-                        "linestring",
-                        "multilinestring",
-                        "polygon",
-                        "multipolygon",
-                    ]:
-                        continue
-                    layer_name = f"{self.layer_name}_{geometry_type}"
-                    layer_dict[geometry_type] = {
-                        "features": [],
-                        "layer": QgsVectorLayer(
-                            f"{geometry_type}?crs=epsg:4326", layer_name, "memory"
-                        ),
-                    }
-                feature.setGeometry(qgsGeometry)
-                layer_dict[geometry_type]["features"].append(feature)
+            column_names = ""
+            for desc in cur_description:
+                if column_names != "":
+                    column_names += ", "
+                desc_col_name = desc.name
+                if desc_col_name == self.geo_column_name:
+                    column_names += (
+                        f"ST_ASWKB({self.geo_column_name}) AS {self.geo_column_name}"
+                    )
+                else:
+                    column_names += desc_col_name
 
-            feature_iterator.close()
+            query = f"select {column_names} from ({self.query})"
 
-            self._add_features_attributes_to_layer(layer_dict)
-            return True
+            error_cancel_status, self.layers = get_layers(
+                auth_information=self.auth_information,
+                layer_pre_name=self.layer_name,
+                query=query,
+                connection_name=self.connection_name,
+                geo_column_name=self.geo_column_name,
+                task=self,
+            )
+            return error_cancel_status
         except Exception as e:
             self.on_handle_error.emit(
                 "SFConvertColumnToLayerTask run failed",
                 f"Running snowflake convert column to layer task failed.\n\nExtended error information:\n{str(e)}",
             )
             return False
-
-    def _add_features_attributes_to_layer(
-        self, layer_dict: Dict[str, Dict[str, Union[list, QgsVectorLayer]]]
-    ):
-        """
-        Adds features and attributes to the specified layers.
-
-        Args:
-            layer_dict (Dict[str, Dict[str, Union[list, QgsVectorLayer]]]): A dictionary containing layer information.
-                The keys are layer types and the values are dictionaries containing the layer and features.
-
-        Returns:
-            None
-        """
-        self.layers = []
-
-        for layer_type in layer_dict:
-            layer_fields = []
-            layer_fields.append(QgsField("Name", QVariant.String))
-            layer_dict[layer_type]["layer"].startEditing()
-            layer_dict[layer_type]["layer"].dataProvider().addAttributes(layer_fields)
-            layer_dict[layer_type]["layer"].updateFields()
-
-            layer_dict[layer_type]["layer"].dataProvider().addFeatures(
-                layer_dict[layer_type]["features"]
-            )
-            layer_dict[layer_type]["layer"].commitChanges()
-            self.layers.append(layer_dict[layer_type]["layer"])
 
     def finished(self, result: bool) -> None:
         """

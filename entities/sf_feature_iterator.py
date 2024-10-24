@@ -19,6 +19,7 @@ class SFFeatureIterator(QgsFeatureIterator):
         super().__init__()
         self.cursor = cursor
         self.fields = fields
+        self.cursor_batch_rows = []
 
     def __iter__(self) -> "QgsFeatureIterator":
         """
@@ -40,10 +41,12 @@ class SFFeatureIterator(QgsFeatureIterator):
             StopIteration: If there are no more features to retrieve.
         """
 
-        row = self.cursor.fetchone()
+        if not self.cursor_batch_rows:
+            self.cursor_batch_rows = self.cursor.fetchmany(5000)
+
+        row = self.cursor_batch_rows.pop(0) if self.cursor_batch_rows else None
         if row is None:
             raise StopIteration
-
         feature = QgsFeature(self.fields)
         feature.setAttributes(list(row))
         return feature

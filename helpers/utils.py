@@ -89,6 +89,10 @@ def on_handle_error(title: str, message: str) -> None:
     QMessageBox.critical(None, title, message, QMessageBox.Ok)
 
 
+def on_handle_warning(title: str, message: str) -> None:
+    QMessageBox.warning(None, title, message, QMessageBox.Ok)
+
+
 def check_package_installed(package_name) -> bool:
     import pkg_resources
 
@@ -103,60 +107,47 @@ def check_install_snowflake_connector_package() -> None:
     if not check_package_installed("snowflake-connector-python"):
         import subprocess
         import platform
-        from qgis.core import QgsApplication
+        import sys
         import os
 
         if platform.system() == "Windows":
-            subprocess.run(
-                ["pip3", "install", "snowflake-connector-python[secure-local-storage]"],
-                check=True,
-            )
-            subprocess.call(["pip3", "install", "pyopenssl", "--upgrade"])
+            prefixPath = sys.exec_prefix
+            python3_path = os.path.join(prefixPath, "python3")
         else:
-            prefixPath = QgsApplication.prefixPath()
+            prefixPath = sys.exec_prefix
             python3_path = os.path.join(prefixPath, "bin", "python3")
-            subprocess.run(
-                [
-                    python3_path,
-                    "-m",
-                    "pip",
-                    "install",
-                    "snowflake-connector-python[secure-local-storage]",
-                ],
-                check=True,
-            )
-            subprocess.call(
-                [python3_path, "-m", "pip", "install", "pyopenssl", "--upgrade"]
-            )
+        subprocess.call(
+            [
+                python3_path,
+                "-m",
+                "pip",
+                "install",
+                "snowflake-connector-python[secure-local-storage]",
+            ]
+        )
+        subprocess.call(
+            [python3_path, "-m", "pip", "install", "pyopenssl", "--upgrade"]
+        )
 
 
 def uninstall_snowflake_connector_package() -> None:
     import subprocess
     import platform
-    from qgis.core import QgsApplication
-    import os
+    import sys
 
     if platform.system() == "Windows":
-        subprocess.run(
-            [
-                "pip3",
-                "uninstall",
-                "snowflake-connector-python[secure-local-storage]",
-                "-y",
-            ],
-            check=True,
-        )
+        prefixPath = sys.exec_prefix
+        python3_path = os.path.join(prefixPath, "python3")
     else:
-        prefixPath = QgsApplication.prefixPath()
+        prefixPath = sys.exec_prefix
         python3_path = os.path.join(prefixPath, "bin", "python3")
-        subprocess.run(
-            [
-                python3_path,
-                "-m",
-                "pip",
-                "uninstall",
-                "snowflake-connector-python[secure-local-storage]",
-                "-y",
-            ],
-            check=True,
-        )
+    subprocess.call(
+        [
+            python3_path,
+            "-m",
+            "pip",
+            "uninstall",
+            "snowflake-connector-python[secure-local-storage]",
+            "-y",
+        ]
+    )

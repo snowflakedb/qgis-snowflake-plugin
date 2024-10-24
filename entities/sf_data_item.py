@@ -1,10 +1,17 @@
+from ..helpers.data_base import (
+    get_column_iterator,
+    get_features_iterator,
+    get_table_column_iterator,
+)
+from ..helpers.messages import get_ok_cancel_message_box
+from ..helpers.layer_creation import check_table_exceeds_size
 from ..helpers.utils import (
     get_authentification_information,
     get_qsettings,
     on_handle_error,
+    on_handle_warning,
     remove_connection,
 )
-from ..providers.sf_data_source_provider import SFDataProvider
 from ..tasks.sf_convert_column_to_layer_task import SFConvertColumnToLayerTask
 from ..ui.sf_connection_string_dialog import SFConnectionStringDialog
 from PyQt5.QtCore import pyqtSignal
@@ -26,7 +33,9 @@ class SFDataItem(QgsDataItem):
         provider_key: str,
         item_type: str,
         icon_path: str,
+        clean_name: str,
         connection_name: str = None,
+        geom_column: str = None,
     ) -> None:
         """
         Initializes a SFDataItem object.
@@ -47,6 +56,8 @@ class SFDataItem(QgsDataItem):
         self.setIcon(QIcon(icon_path))
         self.connection_name = connection_name
         self.message_handler.connect(self.on_message_handler)
+        self.clean_name = clean_name
+        self.geom_column = geom_column
 
     def createChildren(self) -> typing.List["QgsDataItem"]:
         """
@@ -60,39 +71,20 @@ class SFDataItem(QgsDataItem):
         """
         children: typing.List["SFDataItem"] = []
         try:
-            if self.item_type == "column":
+            if self.item_type == "field":
                 pass
             elif self.item_type == "root":
-                root_groups = self.settings.childGroups()
-                for group in root_groups:
-                    item = self._create_data_item(group, "connection", group)
-                    children.append(item)
+                self.create_root_item(children)
+            elif self.item_type == "schema":
+                self.create_schema_item(children)
+
+            elif self.item_type == "table":
+                self.create_table_item(children)
+
+            elif self.item_type == "fields":
+                self.create_fields_item(children)
             else:
-                auth_information, column_name, children_item_type, query = (
-                    self._get_query_metadata()
-                )
-                if (
-                    self.item_type == "connection"
-                    and auth_information["connection_type"] == "Single sign-on (SSO)"
-                ):
-                    self.parent().message_handler.emit(
-                        "Single Sign-On (SSO) Authorization Required",
-                        "Please check your third-party authentication application to authorize the connection. Ensure that any required permissions or approvals are granted to complete the Single Sign-On (SSO) process..",
-                    )
-
-                sf_data_provider = SFDataProvider(auth_information)
-
-                sf_data_provider.load_data(query, self.connection_name)
-                feature_iterator = sf_data_provider.get_feature_iterator()
-
-                for feat in feature_iterator:
-                    item = self._create_data_item(
-                        feat.attribute(column_name),
-                        children_item_type,
-                        self.connection_name,
-                    )
-                    children.append(item)
-                feature_iterator.close()
+                self.create_default_item(children)
 
             return children
 
@@ -104,6 +96,208 @@ class SFDataItem(QgsDataItem):
             )
             children.append(error_item)
         return children
+
+    def create_default_item(self, children: typing.List["SFDataItem"]) -> None:
+        """
+        Creates default items and appends them to the provided children list.
+
+        This method retrieves query metadata and uses it to fetch features from a data source.
+        If the item type is "connection" and the connection type is "Single sign-on (SSO)",
+        it emits a message indicating that SSO authorization is required.
+
+        Args:
+            children (typing.List["SFDataItem"]): A list to which the created data items will be appended.
+
+        Returns:
+            None
+        """
+        auth_information, column_name, children_item_type, query = (
+            self._get_query_metadata()
+        )
+        if (
+            self.item_type == "connection"
+            and auth_information["connection_type"] == "Single sign-on (SSO)"
+        ):
+            self.parent().message_handler.emit(
+                "Single Sign-On (SSO) Authorization Required",
+                "Please check your third-party authentication application to authorize the connection. Ensure that any required permissions or approvals are granted to complete the Single Sign-On (SSO) process..",
+            )
+
+        feature_iterator = get_features_iterator(
+            auth_information, query, self.connection_name
+        )
+
+        for feat in feature_iterator:
+            item = self._create_data_item(
+                name=feat.attribute(column_name),
+                type=children_item_type,
+                connection_name=self.connection_name,
+                clean_name=feat.attribute(column_name),
+            )
+            children.append(item)
+        feature_iterator.close()
+
+    def create_root_item(self, children: typing.List["SFDataItem"]) -> None:
+        """
+        Creates root items and appends them to the provided children list.
+
+        This method retrieves the root groups from the settings and creates a data item
+        for each group. The created data items are then appended to the provided children list.
+
+        Args:
+            children (List[SFDataItem]): A list to which the created root items will be appended.
+
+        Returns:
+            None
+        """
+        root_groups = self.settings.childGroups()
+        for group in root_groups:
+            item = self._create_data_item(
+                name=group,
+                type="connection",
+                connection_name=group,
+                clean_name=group,
+            )
+            children.append(item)
+
+    def create_schema_item(self, children: typing.List["SFDataItem"]) -> None:
+        feature_iterator = get_table_column_iterator(
+            self.settings, self.connection_name, self.clean_name
+        )
+        """
+        Creates schema items and appends them to the provided children list.
+
+        This method iterates over features obtained from a schema iterator and creates
+        data items based on the feature attributes. It handles naming conflicts by 
+        appending column names to the item names if necessary.
+
+        Args:
+            children (typing.List["SFDataItem"]): A list to which the created schema items will be appended.
+
+        Returns:
+            None
+        """
+        children_item_type = "table"
+
+        items_metadata = []
+
+        for feat in feature_iterator:
+            item_name = feat.attribute(0)
+            if len(items_metadata) > 0:
+                last_child = children[-1]
+                last_item_metadata = items_metadata[-1]
+
+                if last_child.name() == feat.attribute(0):
+                    last_child.setName(
+                        f"{last_child.name()}.{last_item_metadata['column_name']}"
+                    )
+                    item_name = f"{feat.attribute(0)}.{feat.attribute(1)}"
+
+            item = self._create_data_item(
+                name=item_name,
+                type=children_item_type,
+                connection_name=self.connection_name,
+                clean_name=feat.attribute(0),
+            )
+            item.geom_column = feat.attribute(1)
+            children.append(item)
+            items_metadata.append(
+                {
+                    "table_name": feat.attribute(0),
+                    "column_name": feat.attribute(1),
+                }
+            )
+        feature_iterator.close()
+
+    def create_table_item(self, children: typing.List["SFDataItem"]) -> None:
+        """
+        Creates a table item and appends it to the provided list of children.
+
+        This method creates a data item with the name "Fields" and type "fields",
+        sets its capabilities to have no capabilities, and then appends it to the
+        provided list of children.
+
+        Args:
+            children (typing.List["SFDataItem"]): The list to which the created item will be appended.
+
+        Returns:
+            None
+        """
+        item = self._create_data_item(
+            name="Fields",
+            type="fields",
+            connection_name=self.connection_name,
+            clean_name="Fields",
+        )
+        item.setCapabilitiesV2(
+            Qgis.BrowserItemCapabilities(Qgis.BrowserItemCapability.NoCapabilities)
+        )
+        children.append(item)
+
+    def create_fields_item(self, children: typing.List["SFDataItem"]) -> None:
+        """
+        Creates field items and appends them to the provided children list.
+
+        This method iterates over features obtained from a column iterator and creates
+        data items for each feature. It filters out geometry and geography columns that
+        do not match the table's geometry column. Each created data item is appended to
+        the provided children list.
+
+        Args:
+            children (typing.List["SFDataItem"]): A list to which the created field items
+                                                  will be appended.
+
+        Returns:
+            None
+        """
+        table_data_item = self.parent()
+        feature_iterator = get_column_iterator(
+            self.settings, self.connection_name, table_data_item
+        )
+
+        for feat in feature_iterator:
+            if feat.attribute(1) in [
+                "GEOMETRY",
+                "GEOGRAPHY",
+            ] and table_data_item.geom_column != feat.attribute(0):
+                continue
+            item = self._create_data_item(
+                name=feat.attribute(0),
+                type="field",
+                connection_name=self.connection_name,
+                clean_name=feat.attribute(0),
+                icon_path=f":/plugins/qgis-py-plugin/ui/images/fields/{self.get_field_type_svg_name(feat.attribute(1), feat.attribute(2))}.svg",
+            )
+            children.append(item)
+        feature_iterator.close()
+
+    def get_field_type_svg_name(self, field_type: str, field_pression: int) -> str:
+        snowflake_types = {
+            "ARRAY": "array",
+            "BINARY": "binary",
+            "BOOLEAN": "bool",
+            "TEXT": "text",
+            "DATE": "date",
+            "FLOAT": "float",
+            "GEOGRAPHY": "geometry",
+            "GEOMETRY": "geometry",
+            "OBJECT": "text",
+            "TIMESTAMP_LTZ": "dateTime",
+            "TIMESTAMP_NTZ": "dateTime",
+            "TIMESTAMP_TZ": "dateTime",
+            "TIME": "time",
+            "VARIANT": "text",
+        }
+
+        if field_type == "NUMBER":
+            if field_pression > 0:
+                return "float"
+            return "integer"
+        else:
+            if field_type in snowflake_types:
+                return snowflake_types[field_type]
+            else:
+                return "text"
 
     def _get_query_metadata(self) -> typing.Tuple[dict, str, str, str]:
         """
@@ -130,26 +324,30 @@ class SFDataItem(QgsDataItem):
         elif self.item_type == "schema":
             column_name = "TABLE_NAME"
             children_item_type = "table"
-            schema_filter = f"AND TABLE_SCHEMA = '{self.name()}'"
+            schema_filter = f"AND TABLE_SCHEMA = '{self.clean_name}'"
         elif self.item_type == "table":
-            schema_filter = f"AND TABLE_SCHEMA = '{self.parent().name()}'"
-            table_filter = f"AND TABLE_NAME = '{self.name()}'"
+            schema_filter = f"AND TABLE_SCHEMA = '{self.parent().clean_name}'"
+            table_filter = f"AND TABLE_NAME = '{self.clean_name}'"
             column_name = "COLUMN_NAME"
             children_item_type = "column"
-        query = f"""
-                    SELECT DISTINCT {column_name}
-                    FROM INFORMATION_SCHEMA.COLUMNS
-                    WHERE table_catalog = '{auth_information["database"]}'
-                    {schema_filter}
-                    {table_filter}
-                    AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY')
-                    ORDER BY {column_name};
-                """
+        query = f"""SELECT DISTINCT {column_name}
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE table_catalog = '{auth_information["database"]}'
+{schema_filter}
+{table_filter}
+AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY')
+ORDER BY {column_name}"""
 
         return auth_information, column_name, children_item_type, query
 
     def _create_data_item(
-        self, name: str, type: str, connection_name: str
+        self,
+        name: str,
+        type: str,
+        connection_name: str,
+        clean_name: str,
+        path: str = None,
+        icon_path: str = None,
     ) -> "SFDataItem":
         """
         Create a SFDataItem object.
@@ -162,14 +360,17 @@ class SFDataItem(QgsDataItem):
         Returns:
         - SFDataItem: The created SFDataItem object.
         """
+        if icon_path is None:
+            icon_path = f":/plugins/qgis-py-plugin/ui/images/{type}.svg"
         item = SFDataItem(
             type=Qgis.BrowserItemType.Field,
             parent=self,
             name=name,
-            path=f"{self.path()}/{name}",
+            path=f"{self.path()}/{name}" if path is None else path,
             provider_key=self.providerKey(),
             item_type=type,
-            icon_path=f":/plugins/qgis-py-plugin/ui/images/{type}.svg",
+            icon_path=icon_path,
+            clean_name=clean_name,
             connection_name=connection_name,
         )
 
@@ -183,19 +384,46 @@ class SFDataItem(QgsDataItem):
             bool: True if the double click event is handled successfully, False otherwise.
         """
         try:
-            if self.item_type == "column":
-                path_split = self.path().split("/")
+            if self.item_type == "table":
+                schema_data_item = self.parent()
+                auth_information = get_authentification_information(
+                    self.settings, self.connection_name
+                )
                 information_dict = {
-                    "schema": path_split[3],
-                    "table": path_split[4],
-                    "column": path_split[5],
+                    "schema": schema_data_item.clean_name,
+                    "table": self.clean_name,
+                    "column": self.geom_column,
+                    "database": auth_information["database"],
                 }
+
+                table_exceeds_size = check_table_exceeds_size(
+                    auth_information=auth_information,
+                    table_information=information_dict,
+                    connection_name=self.connection_name,
+                )
+
+                if table_exceeds_size:
+                    response = get_ok_cancel_message_box(
+                        "SFConvertColumnToLayerTask Dataset is too large",
+                        (
+                            "The dataset is too large. Please consider using "
+                            '"Execute SQL" to limit the result set. If you click '
+                            '"Proceed," only a random sample of 1 million rows '
+                            "will be loaded."
+                        ),
+                    )
+                    if response == QMessageBox.Cancel:
+                        return False
+
                 snowflake_covert_column_to_layer_task = SFConvertColumnToLayerTask(
                     self.connection_name,
                     information_dict,
                 )
                 snowflake_covert_column_to_layer_task.on_handle_error.connect(
                     on_handle_error
+                )
+                snowflake_covert_column_to_layer_task.on_handle_warning.connect(
+                    on_handle_warning
                 )
                 QgsApplication.taskManager().addTask(
                     snowflake_covert_column_to_layer_task
@@ -313,7 +541,7 @@ class SFDataItem(QgsDataItem):
         from ..ui.sf_new_table_dialog import SFNewTableDialog
 
         sf_connection_string_dialog = SFNewTableDialog(
-            self.name(), self.connection_name, None
+            self.clean_name, self.connection_name, None
         )
         sf_connection_string_dialog.update_connections_signal.connect(
             self.on_update_connections_handle
@@ -351,9 +579,11 @@ class SFDataItem(QgsDataItem):
         """
 
         sf_connection_string_dialog_window = SFConnectionStringDialog(
-            parent=None, connection_name=self.name()
+            parent=None, connection_name=self.clean_name
         )
-        auth_information = get_authentification_information(self.settings, self.name())
+        auth_information = get_authentification_information(
+            self.settings, self.clean_name
+        )
 
         index = sf_connection_string_dialog_window.cbxConnectionType.findText(
             auth_information["connection_type"]
@@ -361,7 +591,7 @@ class SFDataItem(QgsDataItem):
         if index != -1:
             sf_connection_string_dialog_window.cbxConnectionType.setCurrentIndex(index)
 
-        sf_connection_string_dialog_window.txtName.setText(self.name())
+        sf_connection_string_dialog_window.txtName.setText(self.clean_name)
         sf_connection_string_dialog_window.txtWarehouse.setText(
             auth_information["warehouse"]
         )
@@ -404,7 +634,7 @@ class SFDataItem(QgsDataItem):
         Returns:
             None
         """
-        remove_connection(self.settings, self.name())
+        remove_connection(self.settings, self.clean_name)
         self.parent().refresh()
 
     def on_refresh_action_triggered(self) -> None:

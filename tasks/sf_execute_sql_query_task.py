@@ -1,23 +1,18 @@
+import typing
+
+from ..helpers.data_base import get_features_iterator
 from ..helpers.utils import get_qsettings, get_authentification_information
-from ..providers.sf_data_source_provider import SFDataProvider
-from qgis.core import (
-    QgsFeature,
-    QgsField,
-    QgsGeometry,
-    QgsMapLayer,
-    QgsProject,
-    QgsTask,
-    QgsVectorLayer,
-)
-from qgis.PyQt.QtCore import pyqtSignal, QVariant
-from typing import Dict, Union, List
+from qgis.core import QgsTask
+from qgis.PyQt.QtCore import pyqtSignal
 
 
 class SFExecuteSQLQueryTask(QgsTask):
     on_handle_error = pyqtSignal(str, str)
     on_data_ready = pyqtSignal(list, list)
 
-    def __init__(self, connection_name: str, query: str):
+    def __init__(
+        self, connection_name: str, query: str, limit: typing.Union[int, None] = None
+    ):
         try:
             self.query = query
             super().__init__(
@@ -30,6 +25,7 @@ class SFExecuteSQLQueryTask(QgsTask):
             )
             self.database_name = self.auth_information["database"]
             self.connection_name = connection_name
+            self.limit = limit
         except Exception as e:
             self.on_handle_error.emit(
                 "SFExecuteSQLQueryTask init failed",
@@ -44,15 +40,19 @@ class SFExecuteSQLQueryTask(QgsTask):
             bool: True if the task is executed successfully, False otherwise.
         """
         try:
-            sf_data_provider = SFDataProvider(self.auth_information)
-            sf_data_provider.load_data(self.query, self.connection_name)
-            feature_iterator = sf_data_provider.get_feature_iterator()
-            self.column_names = [
-                desc[0] for desc in feature_iterator.cursor.description
-            ]
+            feature_iterator = get_features_iterator(
+                auth_information=self.auth_information,
+                query=self.query,
+                connection_name=self.connection_name,
+            )
+            self.columns_descriptions = feature_iterator.cursor.description
 
             self.features = []
-            for feat in feature_iterator:
+            for index, feat in enumerate(feature_iterator):
+                if self.limit is not None and index >= self.limit:
+                    break
+                if self.isCanceled():
+                    return False
                 self.features.append(feat)
 
             feature_iterator.close()
@@ -77,6 +77,6 @@ class SFExecuteSQLQueryTask(QgsTask):
         """
         if result:
             self.on_data_ready.emit(
-                self.column_names,
+                self.columns_descriptions,
                 self.features,
             )

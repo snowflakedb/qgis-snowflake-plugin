@@ -82,6 +82,24 @@ class SFDataProvider(QgsDataProvider):
         """
         return self.connection_manager.execute_query(connection_name, query=query)
 
+    snowflake_type_codes = {
+        0: QVariant.Int,  # BIGINT_COL, DECIMAL_COL, ID, INT_COL, NUM_COL, SMALLINT_COL, TINYINT_COL
+        1: QVariant.Double,  # DOUBLE_COL, REAL_COL
+        2: QVariant.String,  # CHAR_COL, STR_COL, TEXT_COL
+        3: QVariant.Date,  # DATE_COL
+        4: QVariant.String,  #
+        5: QVariant.String,  # VARIANT_COL
+        6: QVariant.DateTime,  # TIMESTAMP_LTZ_COL
+        7: QVariant.DateTime,  # TIMESTAMP_TZ_COL
+        8: QVariant.DateTime,  # TIMESTAMP_NTZ_COL
+        9: QVariant.String,  # OBJECT_COL
+        10: QVariant.String,  # ARRAY
+        11: QVariant.String,  # BINARY_COL, GEOGRAPHY_COL
+        12: QVariant.Time,  # TIME_COL
+        13: QVariant.Bool,  # BOOL_COL
+        14: QVariant.String,
+    }
+
     def load_data(
         self, query: str, connection_name: str, force_refresh: bool = False
     ) -> None:
@@ -101,15 +119,23 @@ class SFDataProvider(QgsDataProvider):
                 or self.connection_manager.get_connection(connection_name) is None
             ):
                 self.connection_manager.connect(connection_name, self.connection_params)
-            cursor = self.connection_manager.execute_query(connection_name, query)
+            cursor: snowflake.connector.cursor.SnowflakeCursor = (
+                self.connection_manager.execute_query(connection_name, query)
+            )
 
             # Create QgsFields based on Snowflake schema
             fields = QgsFields()
             c_description = cursor.description
-            for f in c_description:
-                code_type = f[1]
-                field_type = self.get_field_type_from_code_type(code_type)
-                qgsField = QgsField(f[0], field_type)
+            for col in c_description:
+                code_type = col[1]
+                type = self.snowflake_type_codes.get(code_type, QVariant.String)
+                subType = type
+                if type == QVariant.Int:
+                    if col[5] > 0:
+                        type = QVariant.Double
+                if type in [QVariant.DateTime, QVariant.Date, QVariant.Time]:
+                    type = QVariant.String
+                qgsField = QgsField(col[0], type, str(type), subType=subType)
                 fields.append(qgsField)
 
             # Create a QgsFeatureSource
@@ -125,14 +151,6 @@ class SFDataProvider(QgsDataProvider):
             SFFeatureIterator: An iterator object that allows iterating over the features in the data source.
         """
         return self.feature_source
-
-    # def get_fields(self):
-    #     """Return QgsFields object."""
-    #     return self.fields
-
-    # def capabilities(self):
-    #     """Return capabilities of the provider."""
-    #     return QgsDataProvider.ReadOnly
 
     def name(self) -> str:
         """Return the name of the provider."""

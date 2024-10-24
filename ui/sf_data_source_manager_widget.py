@@ -1,3 +1,5 @@
+from ..helpers.layer_creation import check_table_exceeds_size
+from ..helpers.messages import get_ok_cancel_message_box
 from ..helpers.utils import (
     get_authentification_information,
     get_qsettings,
@@ -81,6 +83,35 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
             comment = model.data(qmi_comment)
             column = model.data(qmi_column)
 
+            selected_connection = self.cmbConnections.currentText()
+            auth_information = get_authentification_information(
+                self.settings, selected_connection
+            )
+            table_information = {
+                "database": auth_information["database"],
+                "schema": schema,
+                "table": table,
+            }
+
+            table_exceeds_size = check_table_exceeds_size(
+                auth_information=auth_information,
+                table_information=table_information,
+                connection_name=selected_connection,
+            )
+
+            if table_exceeds_size:
+                response = get_ok_cancel_message_box(
+                    "SFConvertColumnToLayerTask Dataset is too large",
+                    (
+                        "The dataset is too large. Please consider using "
+                        '"Execute SQL" to limit the result set. If you click '
+                        '"Proceed," only a random sample of 1 million rows '
+                        "will be loaded."
+                    ),
+                )
+                if response == QMessageBox.Cancel:
+                    return False
+
             information_dict = {
                 "schema": schema,
                 "table": table,
@@ -88,7 +119,6 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
                 "comment": comment,
             }
 
-            selected_connection = self.cmbConnections.currentText()
             if selected_connection is not None and selected_connection != "":
                 snowflake_covert_column_to_layer_task = SFConvertColumnToLayerTask(
                     selected_connection,
@@ -151,7 +181,9 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
         try:
             selected_connection = self.cmbConnections.currentText()
             if selected_connection is not None and selected_connection != "":
-                remove_connection(selected_connection)
+                remove_connection(
+                    settings=self.settings, connection_name=selected_connection
+                )
                 self.update_cmb_connections()
         except Exception as e:
             QMessageBox.information(
