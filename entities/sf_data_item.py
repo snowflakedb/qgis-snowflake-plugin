@@ -1,3 +1,4 @@
+from ..managers.sf_connection_manager import SFConnectionManager
 from ..helpers.data_base import (
     get_column_iterator,
     get_features_iterator,
@@ -621,7 +622,7 @@ ORDER BY {column_name}"""
         If the item type is "connection", refresh the parent item.
         """
         if self.item_type == "root":
-            self.refresh()
+            self.refresh_internal()
         if self.item_type == "connection":
             self.parent().refresh()
 
@@ -641,7 +642,7 @@ ORDER BY {column_name}"""
         """
         Refreshes the data item.
         """
-        self.refresh()
+        self.refresh_internal()
 
     def on_message_handler(self, title: str, message: str) -> None:
         """
@@ -655,3 +656,13 @@ ORDER BY {column_name}"""
         - None
         """
         QMessageBox.information(None, title, message)
+
+    def refresh_internal(self) -> None:
+        """
+        Refreshes the data item.
+        """
+        connection_manager: SFConnectionManager = SFConnectionManager.get_instance()
+        if self.item_type != "root":
+            connection_manager.reconnect(self.connection_name)
+
+        super().refresh()

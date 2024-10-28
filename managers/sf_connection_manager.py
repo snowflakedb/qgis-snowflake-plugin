@@ -1,6 +1,8 @@
 from typing import Dict
 import snowflake.connector
 
+from ..helpers.utils import get_auth_information
+
 
 class SFConnectionManager:
     _instance = None
@@ -107,7 +109,9 @@ class SFConnectionManager:
         """
         try:
             if connection_name in self.opened_connections:
-                self.opened_connections[connection_name].close()
+                connection = self.opened_connections[connection_name]
+                connection.close()
+                del connection
         except Exception as e:
             raise e
 
@@ -155,6 +159,22 @@ class SFConnectionManager:
             return cursor
         except Exception as e:
             raise e
+
+    def reconnect(self, connection_name: str) -> None:
+        """
+        Reconnects to the specified Snowflake connection.
+
+        This method iterates through the list of opened connections and attempts to
+        reconnect to the connection specified by the connection_name parameter.
+
+        Args:
+            connection_name (str): The name of the connection to reconnect to.
+
+        Returns:
+            None
+        """
+        auth_information = get_auth_information(connection_name)
+        self.connect(connection_name, auth_information)
 
     @staticmethod
     def get_instance() -> "SFConnectionManager":
