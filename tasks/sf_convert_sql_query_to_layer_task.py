@@ -55,11 +55,9 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
                     column_names += ", "
                 desc_col_name = desc.name
                 if desc_col_name == self.geo_column_name:
-                    column_names += (
-                        f"ST_ASWKB({self.geo_column_name}) AS {self.geo_column_name}"
-                    )
+                    column_names += f'ST_ASWKB("{self.geo_column_name}") AS "{self.geo_column_name}"'
                 else:
-                    column_names += desc_col_name
+                    column_names += f'"{desc_col_name}"'
 
             query = f"select {column_names} from ({self.query})"
 
