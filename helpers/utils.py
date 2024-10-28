@@ -151,3 +151,17 @@ def uninstall_snowflake_connector_package() -> None:
             "-y",
         ]
     )
+
+
+def get_auth_information(connection_name: str) -> dict:
+    settings = get_qsettings()
+    auth_info = {}
+    settings.beginGroup(connection_name)
+    auth_info["warehouse"] = settings.value("warehouse", defaultValue="")
+    auth_info["account"] = settings.value("account", defaultValue="")
+    auth_info["database"] = settings.value("database", defaultValue="")
+    auth_info["username"] = settings.value("username", defaultValue="")
+    auth_info["connection_type"] = settings.value("connection_type", defaultValue="")
+    auth_info["password"] = settings.value("password", defaultValue="")
+    settings.endGroup()
+    return auth_info
