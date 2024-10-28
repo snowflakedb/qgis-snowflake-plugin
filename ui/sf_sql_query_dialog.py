@@ -162,7 +162,7 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
                                     [QgsPointXY(xy[0], xy[1]) for xy in line]
                                     for line in coordinates
                                 ]
-                                geom = QgsGeometry.fromMultiPolylineXY([lines])
+                                geom = QgsGeometry.fromMultiPolylineXY(lines)
                             elif geom_type == "MultiPolygon":
                                 polygons = []
                                 for ring in coordinates:

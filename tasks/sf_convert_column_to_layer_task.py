@@ -77,13 +77,13 @@ class SFConvertColumnToLayerTask(QgsTask):
                     if row[0] == self.column:
                         if query_columns != "":
                             query_columns += ", "
-                        query_columns += f"ST_ASWKB({row[0]}) AS {self.column}"
+                        query_columns += f'ST_ASWKB("{row[0]}") AS "{self.column}"'
                     else:
                         continue
                 else:
                     if query_columns != "":
                         query_columns += ", "
-                    query_columns += row[0]
+                    query_columns += f'"{row[0]}"'
             cur_select_columns.close()
             query = f"""SELECT {query_columns}
 FROM "{self.database_name}"."{self.schema}"."{self.table}"
