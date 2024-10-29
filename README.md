@@ -14,7 +14,7 @@ Goto to Plugins > "Manage and Install Plugins" click on "All" and search for "Sn
 
 You can also try latest development versions by downloading and installing the plugin in QGIS from a zip file. 
 
-These are available here https://github.com/snowflakedb/qgis-snowflake-plugin/releases, download the zip-file "qgis-snowflake-connector.zip" for the release you want to try.
+These are available [here](https://github.com/snowflakedb/qgis-snowflake-plugin/releases), download the zip-file "qgis-snowflake-plugin.zip" for the release you want to try.
 
 ## Getting Started
 
