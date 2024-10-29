@@ -41,7 +41,7 @@ class SFDataItemProvider(QgsDataItemProvider):
                     path="/Snowflake",
                     provider_key=self._dataProviderKey,
                     item_type="root",
-                    icon_path=":/plugins/qgis-py-plugin/qgis_sf.png",
+                    icon_path=":/plugins/qgis-snowflake-plugin/qgis_sf.png",
                     clean_name=self._name,
                 )
                 return root_data_item

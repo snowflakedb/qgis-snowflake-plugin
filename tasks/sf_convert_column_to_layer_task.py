@@ -2,7 +2,7 @@ import traceback
 
 from ..helpers.data_base import get_columns_cursor
 from ..helpers.utils import get_qsettings, get_authentification_information
-from ..helpers.layer_creation import get_layers
+from ..helpers.layer_creation import get_layers, get_srid_from_table
 from qgis.core import (
     QgsMapLayer,
     QgsProject,
@@ -72,9 +72,21 @@ class SFConvertColumnToLayerTask(QgsTask):
             if cur_select_columns.rowcount == 0:
                 return True
             query_columns = ""
+            srid = 4326
             for row in cur_select_columns:
                 if row[1] in ["GEOMETRY", "GEOGRAPHY"]:
                     if row[0] == self.column:
+                        srid = get_srid_from_table(
+                            auth_information=self.auth_information,
+                            table_information={
+                                "database": self.database_name,
+                                "schema": self.schema,
+                                "table": self.table,
+                            },
+                            connection_name=self.connection_name,
+                            column_name=self.column,
+                        )
+
                         if query_columns != "":
                             query_columns += ", "
                         query_columns += f'ST_ASWKB("{row[0]}") AS "{self.column}"'
@@ -93,12 +105,13 @@ LIMIT 1000000"""
             layer_pre_name = f"{self.auth_information['database']}.{self.information_dict['schema']}.{self.information_dict['table']}_{self.information_dict['column']}"
 
             cancel_error_status, self.layers = get_layers(
-                self.auth_information,
-                layer_pre_name,
-                query,
-                self.connection_name,
-                self.column,
-                self,
+                auth_information=self.auth_information,
+                layer_pre_name=layer_pre_name,
+                query=query,
+                connection_name=self.connection_name,
+                geo_column_name=self.column,
+                task=self,
+                srid=srid,
             )
             return cancel_error_status
         except Exception as e:
