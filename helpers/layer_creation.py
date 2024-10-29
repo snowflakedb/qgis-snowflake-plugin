@@ -19,6 +19,7 @@ def get_layers(
     connection_name: str,
     geo_column_name: str,
     task: QgsTask,
+    srid: int = 4326,
 ) -> tuple[bool, list]:
     """
     Retrieves layers from a data source based on the provided query and connection information.
@@ -65,7 +66,10 @@ def get_layers(
 
         feature = QgsFeature(feature_fields_list)
         type_not_supported = add_layer_for_geometry_type(
-            geometry_type, layer_pre_name, layer_dict
+            geometry_type=geometry_type,
+            layer_pre_name=layer_pre_name,
+            layer_dict=layer_dict,
+            srid=srid,
         )
         if type_not_supported:
             continue
@@ -90,6 +94,7 @@ def add_layer_for_geometry_type(
     geometry_type: str,
     layer_pre_name: str,
     layer_dict: Dict[str, Dict[str, Union[list, QgsVectorLayer]]],
+    srid: int = 4326,
 ) -> bool:
     """
     Adds a new layer to the layer dictionary for the specified geometry type.
@@ -116,7 +121,7 @@ def add_layer_for_geometry_type(
         layer_dict[geometry_type] = {
             "features": [],
             "layer": QgsVectorLayer(
-                f"{geometry_type}?crs=epsg:4326&internal_provider=snowflake",
+                f"{geometry_type}?crs=epsg:{srid}&internal_provider=snowflake",
                 layer_name,
                 "memory",
             ),
@@ -279,3 +284,37 @@ def get_wkb_type_name(type_value: int) -> str:
     }
 
     return value_to_name.get(type_value, "Unknown")
+
+
+def get_srid_from_table(
+    auth_information: dict,
+    table_information: dict,
+    connection_name: str,
+    column_name: str,
+) -> int:
+    """
+    Retrieves the SRID (Spatial Reference Identifier) for a specified column in a table.
+
+    Args:
+        auth_information (dict): Authentication information required to connect to the database.
+        table_information (dict): Information about the table, including keys 'database', 'schema', and 'table'.
+        connection_name (str): The name of the connection to use for executing the query.
+        column_name (str): The name of the column for which to retrieve the SRID.
+
+    Returns:
+        int: The SRID for the specified column.
+    """
+    sf_data_provider = SFDataProvider(auth_information)
+    data_base_name = table_information["database"]
+    schema_name = table_information["schema"]
+    table_name = table_information["table"]
+    qre = f'SELECT ANY_VALUE(ST_SRID("{column_name}")) FROM "{data_base_name}"."{schema_name}"."{table_name}"'
+    cur_srid = sf_data_provider.execute_query(
+        query=qre,
+        connection_name=connection_name,
+    )
+
+    srid = cur_srid.fetchone()[0]
+    cur_srid.close()
+
+    return srid

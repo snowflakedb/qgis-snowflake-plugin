@@ -79,7 +79,7 @@
        </property>
        <property name="icon">
         <iconset resource="../resources.qrc">
-         <normaloff>:/plugins/qgis-py-plugin/ui/images/iconClearConsole.svg</normaloff>:/plugins/qgis-py-plugin/ui/images/iconClearConsole.svg</iconset>
+         <normaloff>:/plugins/qgis-snowflake-plugin/ui/images/iconClearConsole.svg</normaloff>:/plugins/qgis-snowflake-plugin/ui/images/iconClearConsole.svg</iconset>
        </property>
        <property name="autoRaise">
         <bool>false</bool>

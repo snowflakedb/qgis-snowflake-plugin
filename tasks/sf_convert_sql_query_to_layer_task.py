@@ -1,6 +1,6 @@
 from ..helpers.data_base import get_cursor_description
 from ..helpers.utils import get_qsettings, get_authentification_information
-from ..helpers.layer_creation import get_layers
+from ..helpers.layer_creation import get_layers, get_srid_from_table
 from qgis.core import (
     QgsMapLayer,
     QgsProject,
@@ -61,6 +61,17 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
 
             query = f"select {column_names} from ({self.query})"
 
+            srid = get_srid_from_table(
+                auth_information=self.auth_information,
+                table_information={
+                    "database": self.database_name,
+                    "schema": self.schema,
+                    "table": self.table,
+                },
+                connection_name=self.connection_name,
+                column_name=self.column,
+            )
+
             error_cancel_status, self.layers = get_layers(
                 auth_information=self.auth_information,
                 layer_pre_name=self.layer_name,
@@ -68,6 +79,7 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
                 connection_name=self.connection_name,
                 geo_column_name=self.geo_column_name,
                 task=self,
+                srid=srid,
             )
             return error_cancel_status
         except Exception as e:
