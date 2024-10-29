@@ -3,17 +3,17 @@
 # This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=QGIS Connector for Snowflake
+name=Snowflake Connector for QGIS
 qgisMinimumVersion=3.0
-description=This plugin imports Snowflake spatial data as layers
-version=0.1
-author=Snowflake
+description=This package includes the Snowflake Connector for QGIS.
+version=0.7
+author=Snowflake Inc.
 email=erick.cuberojimenez@snowflake.com
 
-about=This plugin imports Snowflake spatial data as layers
+about=The Snowflake Connector for QGIS provides an interface for open-source GIS application QGIS that can connect to Snowflake and perform all standard operations.
 
-tracker=https://github.com/snowflakedb/qgis-snowflake-plugin/issues
-repository=https://github.com/snowflakedb/qgis-snowflake-plugin
+tracker=https://github.com/snowflakedb/qgis-snowflake-plugin/issues/
+repository=https://github.com/snowflakedb/qgis-snowflake-plugin/
 # End of mandatory metadata
 
 # Recommended items:
@@ -23,9 +23,9 @@ hasProcessingProvider=yes
 # changelog=
 
 # Tags are comma separated with spaces allowed
-tags=python
+tags=Snowflake, data provider
 
-homepage=https://www.snowflake.com
+homepage=https://docs.snowflake.com/en/sql-reference/functions-geospatial/
 category=Analysis
 icon=icon.png
 # experimental flag
@@ -40,7 +40,7 @@ deprecated=False
 # plugin_dependencies=
 
 Category of the plugin: Raster, Vector, Database or Web
-# category=
+# category=Database
 
 # If the plugin can run on QGIS Server.
 server=False
