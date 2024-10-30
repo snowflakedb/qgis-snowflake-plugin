@@ -96,7 +96,7 @@ class QGISConnectorSnowflakeProvider(QgsProcessingProvider):
         Should return a QIcon which is used for your provider inside
         the Processing toolbox.
         """
-        return QIcon(":/plugins/qgis-py-plugin/ui/images/qgis_logo.svg")
+        return QIcon(":/plugins/qgis-snowflake-plugin/ui/images/qgis_logo.svg")
 
     def longName(self):
         """

@@ -267,7 +267,7 @@ class SFDataItem(QgsDataItem):
                 type="field",
                 connection_name=self.connection_name,
                 clean_name=feat.attribute(0),
-                icon_path=f":/plugins/qgis-py-plugin/ui/images/fields/{self.get_field_type_svg_name(feat.attribute(1), feat.attribute(2))}.svg",
+                icon_path=f":/plugins/qgis-snowflake-plugin/ui/images/fields/{self.get_field_type_svg_name(feat.attribute(1), feat.attribute(2))}.svg",
             )
             children.append(item)
         feature_iterator.close()
@@ -362,7 +362,7 @@ ORDER BY {column_name}"""
         - SFDataItem: The created SFDataItem object.
         """
         if icon_path is None:
-            icon_path = f":/plugins/qgis-py-plugin/ui/images/{type}.svg"
+            icon_path = f":/plugins/qgis-snowflake-plugin/ui/images/{type}.svg"
         item = SFDataItem(
             type=Qgis.BrowserItemType.Field,
             parent=self,
