@@ -17,16 +17,13 @@ You can also try latest development versions by downloading and installing the p
 These are available [here](https://github.com/snowflakedb/qgis-snowflake-plugin/releases), download the zip-file "qgis-snowflake-plugin.zip" for the release you want to try.
 
 ## Getting Started
-
 1. Install the plugin with the QGIS plugin manager.
 2. Go to Layer > Data Source Manager. In the list of data sources click on Snowflake and create a new connectionn
 <img src ='assets/data_source_manager.png'  width=700>
-
 3. Add connection details and choose Connection type (default or SSO)
 <img src ='assets/new_connection.png'  width=500>
 
 ## Support
-
 If you found bugs or have suggestions for improving the plugin, please [submit](https://github.com/snowflakedb/qgis-snowflake-plugin/issues) the issue or contribute by creating a pull request.
 
 Snowflake Documentation is available at:
