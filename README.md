@@ -8,13 +8,7 @@ This package includes the Snowflake Connector for QGIS.
 The Snowflake Connector for QGIS provides an interface for open-source GIS application QGIS that can connect to Snowflake and perform all standard operations. It provides a connection via [Python connector](https://github.com/snowflakedb/snowflake-connector-python).
 
 ## Installation
-The plugin is installed using the QGIS plugin manager. 
-
-Goto to Plugins > "Manage and Install Plugins" click on "All" and search for "Snowflake Connector for QGIS".
-
-You can also try latest development versions by downloading and installing the plugin in QGIS from a zip file. 
-
-These are available [here](https://github.com/snowflakedb/qgis-snowflake-plugin/releases), download the zip-file "qgis-snowflake-plugin.zip" for the release you want to try.
+The plugin is installed using the QGIS plugin manager.  You can try latest development versions by downloading and installing the plugin in QGIS from a zip file. These are available [here](https://github.com/snowflakedb/qgis-snowflake-plugin/releases), download the zip-file "qgis-snowflake-plugin.zip" for the release you want to try.
 
 ## Getting Started
 1. Install the plugin with the QGIS plugin manager.
