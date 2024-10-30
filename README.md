@@ -19,7 +19,11 @@ These are available [here](https://github.com/snowflakedb/qgis-snowflake-plugin/
 ## Getting Started
 
 1. Install the plugin with the QGIS plugin manager.
-3. Go to Layer > Data Source Manager to add new connection
+2. Go to Layer > Data Source Manager. In the list of data sources click on Snowflake and create a new connectionn
+<img src ='assets/data_source_manager.png'  width=700>
+
+3. Add connection details and choose Connection type (default or SSO)
+<img src ='assets/new_connection.png'  width=700>
 
 ## Support
 
