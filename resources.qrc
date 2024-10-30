@@ -6,8 +6,8 @@
         <file>ui/images/connection.svg</file>
         <file>ui/images/schema.svg</file>
         <file>ui/images/table.svg</file>
-        <file>qgis_sf_plus.png</file>
-        <file>qgis_sf.png</file>
+        <file>ui/images/qgis_sf_plus.png</file>
+        <file>ui/images/qgis_sf.png</file>
         <file>ui/images/fields.svg</file>
         <file>ui/images/mActionArrowDown.svg</file>
         <file>ui/images/mActionArrowUp.svg</file>
