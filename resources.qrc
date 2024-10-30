@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/plugins/qgis-snowflake-plugin">
+    <qresource prefix="/plugins/qgis-snowflake-connector">
         <file>icon.png</file>
         <file>ui/images/settings.svg</file>
         <file>ui/images/database.svg</file>

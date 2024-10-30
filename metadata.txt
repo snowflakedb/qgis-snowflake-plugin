@@ -12,8 +12,8 @@ email=erick.cuberojimenez@snowflake.com
 
 about=The Snowflake Connector for QGIS provides an interface for open-source GIS application QGIS that can connect to Snowflake and perform all standard operations.
 
-tracker=https://github.com/snowflakedb/qgis-snowflake-plugin/issues/
-repository=https://github.com/snowflakedb/qgis-snowflake-plugin/
+tracker=https://github.com/snowflakedb/qgis-snowflake-connector/issues/
+repository=https://github.com/snowflakedb/qgis-snowflake-connector/
 # End of mandatory metadata
 
 # Recommended items:
