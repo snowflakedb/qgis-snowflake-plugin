@@ -46,7 +46,7 @@ __copyright__ = "(C) 2024 by Snowflake"
 
 # noinspection PyPep8Naming
 def classFactory(iface):  # pylint: disable=invalid-name
-    """Load QGISConnectorSnowflake class from file QGISConnectorSnowflake.
+    """Load QGISSnowflakeConnector class from file QGISSnowflakeConnector.
 
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
@@ -55,6 +55,6 @@ def classFactory(iface):  # pylint: disable=invalid-name
 
     check_install_snowflake_connector_package()
     #
-    from .qgis_connector_snowflake import QGISConnectorSnowflakePlugin
+    from .qgis_snowflake_connector import QGISSnowflakeConnectorPlugin
 
-    return QGISConnectorSnowflakePlugin()
+    return QGISSnowflakeConnectorPlugin()

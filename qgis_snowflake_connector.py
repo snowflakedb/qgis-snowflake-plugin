@@ -53,12 +53,12 @@ import inspect
 
 from qgis.core import QgsProcessingAlgorithm, QgsApplication
 
-from .qgis_connector_snowflake_algorithm import QGISConnectorSnowflakeAlgorithm
+from .qgis_snowflake_connector_algorithm import QGISSnowflakeConnectorAlgorithm
 
 from .providers.sf_data_item_provider import SFDataItemProvider
 
 from .providers.sf_source_select_provider import SFSourceSelectProvider
-from .qgis_connector_snowflake_provider import QGISConnectorSnowflakeProvider
+from .qgis_snowflake_connector_provider import QGISSnowflakeConnectorProvider
 from .resources_rc import *
 from qgis.gui import QgsGui
 
@@ -68,7 +68,7 @@ if cmd_folder not in sys.path:
     sys.path.insert(0, cmd_folder)
 
 
-class QGISConnectorSnowflakePlugin(object):
+class QGISSnowflakeConnectorPlugin(object):
     def __init__(self):
         self.provider = None
 
@@ -79,9 +79,9 @@ class QGISConnectorSnowflakePlugin(object):
         )
 
         if self.postgis_native_provider:
-            self.qgis_connector_snowflake_algorithm = QGISConnectorSnowflakeAlgorithm()
+            self.qgis_snowflake_connector_algorithm = QGISSnowflakeConnectorAlgorithm()
             self.postgis_native_provider.addAlgorithm(
-                self.qgis_connector_snowflake_algorithm
+                self.qgis_snowflake_connector_algorithm
             )
 
         self.tm = QgsApplication.taskManager()
@@ -95,7 +95,7 @@ class QGISConnectorSnowflakePlugin(object):
             self.sf_data_item_provider
         )
 
-        self.provider = QGISConnectorSnowflakeProvider()
+        self.provider = QGISSnowflakeConnectorProvider()
         QgsApplication.processingRegistry().addProvider(self.provider)
 
     def initGui(self):
@@ -104,7 +104,7 @@ class QGISConnectorSnowflakePlugin(object):
     def unload(self):
         QgsApplication.processingRegistry().removeProvider(self.provider)
         self.postgis_native_provider.algorithms().remove(
-            self.qgis_connector_snowflake_algorithm
+            self.qgis_snowflake_connector_algorithm
         )
         self.postgis_native_provider.refreshAlgorithms()
         QgsGui.sourceSelectProviderRegistry().removeProvider(

@@ -141,7 +141,7 @@
            <string/>
           </property>
           <property name="pixmap">
-           <pixmap resource="../resources.qrc">:/plugins/qgis-snowflake-plugin/ui/images/mIconWarning.svg</pixmap>
+           <pixmap resource="../resources.qrc">:/plugins/qgis-snowflake-connector/ui/images/mIconWarning.svg</pixmap>
           </property>
           <property name="margin">
            <number>0</number>
@@ -248,7 +248,7 @@
        </property>
        <property name="icon">
         <iconset resource="../resources.qrc">
-         <normaloff>:/plugins/qgis-snowflake-plugin/ui/images/mActionNewAttribute.svg</normaloff>:/plugins/qgis-snowflake-plugin/ui/images/mActionNewAttribute.svg</iconset>
+         <normaloff>:/plugins/qgis-snowflake-connector/ui/images/mActionNewAttribute.svg</normaloff>:/plugins/qgis-snowflake-connector/ui/images/mActionNewAttribute.svg</iconset>
        </property>
       </widget>
      </item>
@@ -259,7 +259,7 @@
        </property>
        <property name="icon">
         <iconset resource="../resources.qrc">
-         <normaloff>:/plugins/qgis-snowflake-plugin/ui/images/mActionDeleteAttribute.svg</normaloff>:/plugins/qgis-snowflake-plugin/ui/images/mActionDeleteAttribute.svg</iconset>
+         <normaloff>:/plugins/qgis-snowflake-connector/ui/images/mActionDeleteAttribute.svg</normaloff>:/plugins/qgis-snowflake-connector/ui/images/mActionDeleteAttribute.svg</iconset>
        </property>
       </widget>
      </item>
@@ -283,7 +283,7 @@
        </property>
        <property name="icon">
         <iconset resource="../resources.qrc">
-         <normaloff>:/plugins/qgis-snowflake-plugin/ui/images/mActionArrowUp.svg</normaloff>:/plugins/qgis-snowflake-plugin/ui/images/mActionArrowUp.svg</iconset>
+         <normaloff>:/plugins/qgis-snowflake-connector/ui/images/mActionArrowUp.svg</normaloff>:/plugins/qgis-snowflake-connector/ui/images/mActionArrowUp.svg</iconset>
        </property>
       </widget>
      </item>
@@ -294,7 +294,7 @@
        </property>
        <property name="icon">
         <iconset resource="../resources.qrc">
-         <normaloff>:/plugins/qgis-snowflake-plugin/ui/images/mActionArrowDown.svg</normaloff>:/plugins/qgis-snowflake-plugin/ui/images/mActionArrowDown.svg</iconset>
+         <normaloff>:/plugins/qgis-snowflake-connector/ui/images/mActionArrowDown.svg</normaloff>:/plugins/qgis-snowflake-connector/ui/images/mActionArrowDown.svg</iconset>
        </property>
       </widget>
      </item>
