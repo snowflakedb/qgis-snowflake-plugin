@@ -23,7 +23,7 @@ These are available [here](https://github.com/snowflakedb/qgis-snowflake-plugin/
 <img src ='assets/data_source_manager.png'  width=700>
 
 3. Add connection details and choose Connection type (default or SSO)
-<img src ='assets/new_connection.png'  width=700>
+<img src ='assets/new_connection.png'  width=500>
 
 ## Support
 
