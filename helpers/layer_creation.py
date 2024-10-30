@@ -237,7 +237,7 @@ def check_table_exceeds_size(
     auth_information: dict,
     table_information: dict,
     connection_name: str,
-    limit_size: int = 1000000,
+    limit_size: int = 100000,
 ) -> bool:
     """
     Checks if the number of rows in a specified table exceeds a given limit.
