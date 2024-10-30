@@ -100,7 +100,7 @@ class SFConvertColumnToLayerTask(QgsTask):
             query = f"""SELECT {query_columns}
 FROM "{self.database_name}"."{self.schema}"."{self.table}"
 ORDER BY RANDOM()
-LIMIT 1000000"""
+LIMIT 100000"""
 
             layer_pre_name = f"{self.auth_information['database']}.{self.information_dict['schema']}.{self.information_dict['table']}_{self.information_dict['column']}"
 
