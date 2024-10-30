@@ -76,7 +76,7 @@ from .providers.sf_data_source_provider import SFDataProvider
 from .helpers.utils import get_authentification_information, get_qsettings
 
 
-class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
+class QGISSnowflakeConnectorAlgorithm(QgsProcessingAlgorithm):
     """
     This is an example algorithm that takes a vector layer and
     creates a new identical one.
@@ -381,7 +381,7 @@ class QGISConnectorSnowflakeAlgorithm(QgsProcessingAlgorithm):
         return QCoreApplication.translate("Processing", string)
 
     def createInstance(self):
-        return QGISConnectorSnowflakeAlgorithm()
+        return QGISSnowflakeConnectorAlgorithm()
 
     def checkParameterValues(
         self, parameters: typing.Dict[str, typing.Any], context: "QgsProcessingContext"

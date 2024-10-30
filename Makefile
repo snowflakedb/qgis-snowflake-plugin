@@ -53,13 +53,13 @@ LOCALES =
 # translation
 SOURCES = \
 	__init__.py \
-	qgis_connector_snowflake.py 
+	qgis_snowflake_connector.py 
 
-PLUGINNAME = qgis_connector_snowflake
+PLUGINNAME = qgis_snowflake_connector
 
 PY_FILES = \
 	__init__.py \
-	qgis_connector_snowflake.py 
+	qgis_snowflake_connector.py 
 
 UI_FILES = 
 

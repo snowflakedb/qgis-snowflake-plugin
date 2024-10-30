@@ -48,11 +48,11 @@ __copyright__ = "(C) 2024 by Snowflake"
 __revision__ = "$Format:%H$"
 
 from qgis.core import QgsProcessingProvider
-from .qgis_connector_snowflake_algorithm import QGISConnectorSnowflakeAlgorithm
+from .qgis_snowflake_connector_algorithm import QGISSnowflakeConnectorAlgorithm
 from qgis.PyQt.QtGui import QIcon
 
 
-class QGISConnectorSnowflakeProvider(QgsProcessingProvider):
+class QGISSnowflakeConnectorProvider(QgsProcessingProvider):
     def __init__(self):
         """
         Default constructor.
@@ -70,7 +70,7 @@ class QGISConnectorSnowflakeProvider(QgsProcessingProvider):
         """
         Loads all algorithms belonging to this provider.
         """
-        self.addAlgorithm(QGISConnectorSnowflakeAlgorithm())
+        self.addAlgorithm(QGISSnowflakeConnectorAlgorithm())
         # add additional algorithms here
         # self.addAlgorithm(MyOtherAlgorithm())
 
