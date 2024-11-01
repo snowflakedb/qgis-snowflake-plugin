@@ -70,6 +70,8 @@ class SFConnectionManager:
                 conn_params["password"] = connection_params["password"]
             elif connection_params["connection_type"] == "Single sign-on (SSO)":
                 conn_params["authenticator"] = "externalbrowser"
+            if "role" in connection_params:
+                conn_params["role"] = connection_params["role"]
 
             self.opened_connections[connection_name] = self.create_snowflake_connection(
                 conn_params

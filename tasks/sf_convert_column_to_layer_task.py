@@ -142,4 +142,4 @@ LIMIT 50000"""
                 if isinstance(layer, QgsMapLayer):
                     QgsProject.instance().addMapLayer(layer)
                     QgsProject.instance().layerTreeRoot()
-                    remove_task_from_running_queue(self.path)
+        remove_task_from_running_queue(self.path)

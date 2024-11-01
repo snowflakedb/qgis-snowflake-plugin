@@ -617,6 +617,8 @@ ORDER BY {column_name}"""
         sf_connection_string_dialog_window.txtDatabase.setText(
             auth_information["database"]
         )
+        if "role" in auth_information:
+            sf_connection_string_dialog_window.txtRole.setText(auth_information["role"])
 
         sf_connection_string_dialog_window.mAuthSettings.setUsername(
             auth_information["username"]
@@ -676,8 +678,15 @@ ORDER BY {column_name}"""
         """
         Refreshes the data item.
         """
-        connection_manager: SFConnectionManager = SFConnectionManager.get_instance()
-        if self.item_type != "root":
-            connection_manager.reconnect(self.connection_name)
+        try:
+            connection_manager: SFConnectionManager = SFConnectionManager.get_instance()
+            if self.item_type != "root":
+                connection_manager.reconnect(self.connection_name)
 
-        super().refresh()
+            super().refresh()
+        except Exception as e:
+            QMessageBox.information(
+                None,
+                "Data Item Actions Refresh Error",
+                f"SFDataItem - refresh failed.\n\nExtended error information:\n{str(e)}",
+            )

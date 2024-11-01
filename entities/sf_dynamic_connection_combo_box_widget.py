@@ -9,7 +9,11 @@ from PyQt5.QtWidgets import (
 
 from ..helpers.data_base import get_schema_iterator, get_table_iterator
 
-from ..helpers.utils import get_authentification_information, get_qsettings
+from ..helpers.utils import (
+    get_authentification_information,
+    get_connection_child_groups,
+    get_qsettings,
+)
 from processing.gui.wrappers import WidgetWrapper
 
 
@@ -43,7 +47,7 @@ class DynamicConnectionComboBoxWidget(WidgetWrapper):
 
     def get_connections_cb_options(self):
         connections_cb_options = []
-        root_groups = self.settings.childGroups()
+        root_groups = get_connection_child_groups()
         for group in root_groups:
             connections_cb_options.append(group)
         connections_cb_options.insert(0, "")

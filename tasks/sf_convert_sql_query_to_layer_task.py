@@ -15,10 +15,10 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
 
     def __init__(
         self,
-        context_information: typing.Dict[str, typing.Union[str, None]],
         query: str,
         geo_column_name: str,
         layer_name: str,
+        context_information: typing.Dict[str, typing.Union[str, None]] = None,
     ):
         try:
             self.query = query

@@ -180,7 +180,7 @@ def get_cursor_description(
     auth_information: dict,
     query: str,
     connection_name: str,
-    context_information: typing.Dict[str, typing.Union[str, None]],
+    context_information: typing.Dict[str, typing.Union[str, None]] = None,
 ) -> list[snowflake.connector.cursor.ResultMetadata]:
     """
     Executes a query on a Snowflake database and retrieves the cursor description.

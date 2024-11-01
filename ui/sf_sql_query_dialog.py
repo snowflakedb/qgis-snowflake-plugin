@@ -27,7 +27,7 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
 
     def __init__(
         self,
-        context_information: typing.Dict[str, typing.Union[str, None]],
+        context_information: typing.Dict[str, typing.Union[str, None]] = None,
         parent: typing.Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
