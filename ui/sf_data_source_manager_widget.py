@@ -232,6 +232,9 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
                 another_window.txtAccount.setText(auth_information["account"])
                 another_window.txtDatabase.setText(auth_information["database"])
 
+                if "role" in auth_information:
+                    another_window.txtRole.setText(auth_information["role"])
+
                 another_window.mAuthSettings.setUsername(auth_information["username"])
                 another_window.exec_()
         except Exception as e:

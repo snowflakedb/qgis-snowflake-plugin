@@ -12,9 +12,9 @@ class SFExecuteSQLQueryTask(QgsTask):
 
     def __init__(
         self,
-        context_information: typing.Dict[str, typing.Union[str, None]],
         query: str,
         limit: typing.Union[int, None] = None,
+        context_information: typing.Dict[str, typing.Union[str, None]] = None,
     ):
         try:
             self.query = query

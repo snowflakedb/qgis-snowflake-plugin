@@ -292,7 +292,7 @@ def get_srid_from_table(
     table_information: dict,
     connection_name: str,
     column_name: str,
-    context_information: typing.Dict[str, typing.Union[str, None]],
+    context_information: typing.Dict[str, typing.Union[str, None]] = None,
 ) -> int:
     """
     Retrieves the SRID (Spatial Reference Identifier) for a specified column in a table.

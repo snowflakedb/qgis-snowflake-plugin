@@ -92,6 +92,8 @@ class SFConnectionStringDialog(QDialog, FORM_CLASS_SFCS):
                 "username": self.mAuthSettings.username(),
                 "connection_type": self.cbxConnectionType.currentText(),
             }
+            if self.txtRole.text() != "":
+                conn_settings["role"] = self.txtRole.text()
             if self.cbxConnectionType.currentText() == "Default Authentication":
                 conn_settings["password"] = self.mAuthSettings.password()
             set_connection_settings(conn_settings)
@@ -123,6 +125,8 @@ class SFConnectionStringDialog(QDialog, FORM_CLASS_SFCS):
                 "database": self.txtDatabase.text(),
                 "login_timeout": 5,
             }
+            if self.txtRole.text() != "":
+                connection_params["role"] = self.txtRole.text()
             if self.cbxConnectionType.currentText() == "Default Authentication":
                 connection_params["password"] = self.mAuthSettings.password()
                 conn = sf_connection_manager.create_snowflake_connection(

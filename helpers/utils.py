@@ -104,6 +104,9 @@ def get_authentification_information(settings: QSettings, connection_name: str) 
     auth_info["username"] = settings.value("username", defaultValue="")
     auth_info["connection_type"] = settings.value("connection_type", defaultValue="")
     auth_info["password"] = settings.value("password", defaultValue="")
+    role = settings.value("role", defaultValue="")
+    if role != "":
+        auth_info["role"] = role
     settings.endGroup()
 
     return auth_info
@@ -184,6 +187,8 @@ def set_connection_settings(connection_settings: dict) -> None:
     settings.setValue("database", connection_settings["database"])
     settings.setValue("username", connection_settings["username"])
     settings.setValue("connection_type", connection_settings["connection_type"])
+    if "role" in connection_settings:
+        settings.setValue("role", connection_settings["role"])
     if connection_settings["connection_type"] == "Default Authentication":
         settings.setValue("password", connection_settings["password"])
     settings.endGroup()
@@ -332,6 +337,9 @@ def get_auth_information(connection_name: str) -> dict:
     auth_info["username"] = settings.value("username", defaultValue="")
     auth_info["connection_type"] = settings.value("connection_type", defaultValue="")
     auth_info["password"] = settings.value("password", defaultValue="")
+    role = settings.value("role", defaultValue="")
+    if role != "":
+        auth_info["role"] = role
     settings.endGroup()
     return auth_info
 
