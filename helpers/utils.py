@@ -4,6 +4,81 @@ import os
 from qgis.PyQt.QtWidgets import QMessageBox
 
 
+def add_task_to_running_queue(task_name: str, status: str) -> None:
+    """
+    Adds a task to the running queue with the specified status.
+
+    This function updates the QGIS settings to include a new task under the
+    "running_tasks" group. The task is identified by its name and associated
+    with a given status.
+
+    Args:
+        task_name (str): The name of the task to be added to the running queue.
+        status (str): The status of the task to be added.
+
+    Returns:
+        None
+    """
+    settings = get_qsettings()
+    settings.beginGroup("running_tasks")
+    settings.setValue(task_name, status)
+    settings.endGroup()
+    settings.sync()
+
+
+def get_task_status(task_name: str) -> str:
+    """
+    Retrieve the status of a specified task from QGIS settings.
+
+    Args:
+        task_name (str): The name of the task whose status is to be retrieved.
+
+    Returns:
+        str: The status of the task. If the task does not exist, returns "does not exist".
+    """
+    settings = get_qsettings()
+    settings.beginGroup("running_tasks")
+    task_status = settings.value(task_name, defaultValue="does not exist")
+    settings.endGroup()
+    return task_status
+
+
+def remove_task_from_running_queue(task_name: str) -> None:
+    """
+    Removes a task from the running queue in QGIS settings.
+
+    This function accesses the QGIS settings, navigates to the "running_tasks" group,
+    and removes the specified task by its name. After making the changes, it ensures
+    the settings are synchronized.
+
+    Args:
+        task_name (str): The name of the task to be removed from the running queue.
+
+    Returns:
+        None
+    """
+    settings = get_qsettings()
+    settings.beginGroup("running_tasks")
+    settings.remove(task_name)
+    settings.endGroup()
+    settings.sync()
+
+
+def task_is_running(task_name: str) -> bool:
+    """
+    Check if a task with the given name is currently running.
+
+    Args:
+        task_name (str): The name of the task to check.
+
+    Returns:
+        bool: True if the task is running, False otherwise.
+    """
+    if get_task_status(task_name) == "does not exist":
+        return False
+    return True
+
+
 def get_authentification_information(settings: QSettings, connection_name: str) -> dict:
     """
     Retrieves authentication information from the given settings for the specified connection name.
@@ -22,7 +97,7 @@ def get_authentification_information(settings: QSettings, connection_name: str) 
         - "password" (str): The password for the Snowflake connection.
     """
     auth_info = {}
-    settings.beginGroup(connection_name)
+    settings.beginGroup(f"connections/{connection_name}")
     auth_info["warehouse"] = settings.value("warehouse", defaultValue="")
     auth_info["account"] = settings.value("account", defaultValue="")
     auth_info["database"] = settings.value("database", defaultValue="")
@@ -79,21 +154,80 @@ def remove_connection(settings: QSettings, connection_name: str) -> None:
     Returns:
     - None
     """
-    settings.beginGroup(connection_name)
+    settings.beginGroup(f"connections/{connection_name}")
     settings.remove("")
     settings.endGroup()
     settings.sync()
 
 
+def set_connection_settings(connection_settings: dict) -> None:
+    """
+    Configures and saves the connection settings for a Snowflake connection in QGIS.
+
+    Args:
+        connection_settings (dict): A dictionary containing the connection settings with the following keys:
+            - name (str): The name of the connection.
+            - warehouse (str): The Snowflake warehouse to use.
+            - account (str): The Snowflake account identifier.
+            - database (str): The Snowflake database to connect to.
+            - username (str): The username for the Snowflake connection.
+            - connection_type (str): The type of connection, e.g., "Default Authentication".
+            - password (str, optional): The password for the Snowflake connection. Required if connection_type is "Default Authentication".
+
+    Returns:
+        None
+    """
+    settings = get_qsettings()
+    settings.beginGroup(f"connections/{connection_settings['name']}")
+    settings.setValue("warehouse", connection_settings["warehouse"])
+    settings.setValue("account", connection_settings["account"])
+    settings.setValue("database", connection_settings["database"])
+    settings.setValue("username", connection_settings["username"])
+    settings.setValue("connection_type", connection_settings["connection_type"])
+    if connection_settings["connection_type"] == "Default Authentication":
+        settings.setValue("password", connection_settings["password"])
+    settings.endGroup()
+    settings.sync()
+
+
 def on_handle_error(title: str, message: str) -> None:
+    """
+    Displays a critical error message box with the given title and message.
+
+    Args:
+        title (str): The title of the error message box.
+        message (str): The content of the error message.
+
+    Returns:
+        None
+    """
     QMessageBox.critical(None, title, message, QMessageBox.Ok)
 
 
 def on_handle_warning(title: str, message: str) -> None:
+    """
+    Displays a warning message box with the given title and message.
+
+    Args:
+        title (str): The title of the warning message box.
+        message (str): The warning message to be displayed.
+
+    Returns:
+        None
+    """
     QMessageBox.warning(None, title, message, QMessageBox.Ok)
 
 
 def check_package_installed(package_name) -> bool:
+    """
+    Checks if a given package is installed in the current Python environment.
+
+    Args:
+        package_name (str): The name of the package to check.
+
+    Returns:
+        bool: True if the package is installed, False otherwise.
+    """
     import pkg_resources
 
     # Iterate over all installed distributions
@@ -104,6 +238,14 @@ def check_package_installed(package_name) -> bool:
 
 
 def check_install_snowflake_connector_package() -> None:
+    """
+    Checks if the 'snowflake-connector-python' package is installed, and if not, installs it along with the 'pyopenssl' package.
+
+    This function determines the appropriate Python executable path based on the operating system and uses it to run pip commands for installing the required packages.
+
+    Raises:
+        subprocess.CalledProcessError: If the pip installation commands fail.
+    """
     if not check_package_installed("snowflake-connector-python"):
         import subprocess
         import platform
@@ -131,6 +273,18 @@ def check_install_snowflake_connector_package() -> None:
 
 
 def uninstall_snowflake_connector_package() -> None:
+    """
+    Uninstalls the Snowflake Connector for Python package.
+
+    This function determines the appropriate Python executable path based on the
+    operating system and uses it to run the pip uninstall command for the
+    'snowflake-connector-python[secure-local-storage]' package.
+
+    It supports both Windows and non-Windows platforms.
+
+    Raises:
+        subprocess.CalledProcessError: If the uninstallation process fails.
+    """
     import subprocess
     import platform
     import sys
@@ -154,9 +308,24 @@ def uninstall_snowflake_connector_package() -> None:
 
 
 def get_auth_information(connection_name: str) -> dict:
+    """
+    Retrieves authentication information for a given connection name from QGIS settings.
+
+    Args:
+        connection_name (str): The name of the connection for which to retrieve authentication information.
+
+    Returns:
+        dict: A dictionary containing the authentication information with the following keys:
+            - "warehouse": The warehouse name.
+            - "account": The account name.
+            - "database": The database name.
+            - "username": The username.
+            - "connection_type": The type of connection.
+            - "password": The password.
+    """
     settings = get_qsettings()
     auth_info = {}
-    settings.beginGroup(connection_name)
+    settings.beginGroup(f"connections/{connection_name}")
     auth_info["warehouse"] = settings.value("warehouse", defaultValue="")
     auth_info["account"] = settings.value("account", defaultValue="")
     auth_info["database"] = settings.value("database", defaultValue="")
@@ -165,3 +334,21 @@ def get_auth_information(connection_name: str) -> dict:
     auth_info["password"] = settings.value("password", defaultValue="")
     settings.endGroup()
     return auth_info
+
+
+def get_connection_child_groups() -> list:
+    """
+    Retrieves the child groups under the "connections" group from QGIS settings.
+
+    This function accesses the QGIS settings, navigates to the "connections" group,
+    and retrieves all child groups within it. It then returns a list of these child
+    groups.
+
+    Returns:
+        list: A list of child group names under the "connections" group.
+    """
+    settings = get_qsettings()
+    settings.beginGroup("connections")
+    root_groups = settings.childGroups()
+    settings.endGroup()
+    return root_groups

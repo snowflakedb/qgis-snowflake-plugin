@@ -1,10 +1,13 @@
 from ..helpers.layer_creation import check_table_exceeds_size
 from ..helpers.messages import get_ok_cancel_message_box
 from ..helpers.utils import (
+    add_task_to_running_queue,
     get_authentification_information,
+    get_connection_child_groups,
     get_qsettings,
     on_handle_error,
     remove_connection,
+    task_is_running,
 )
 from ..tasks.sf_connect_task import SFConnectTask
 from ..tasks.sf_convert_column_to_layer_task import (
@@ -119,10 +122,17 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
                 "comment": comment,
             }
 
-            if selected_connection is not None and selected_connection != "":
+            path = f"/Snowflake/{selected_connection}/{schema}/{table}"
+
+            if (
+                selected_connection is not None
+                and selected_connection != ""
+                and not task_is_running(path)
+            ):
                 snowflake_covert_column_to_layer_task = SFConvertColumnToLayerTask(
-                    selected_connection,
-                    information_dict,
+                    connection_name=selected_connection,
+                    information_dict=information_dict,
+                    path=path,
                 )
                 snowflake_covert_column_to_layer_task.on_handle_error.connect(
                     on_handle_error
@@ -130,6 +140,7 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
                 QgsApplication.taskManager().addTask(
                     snowflake_covert_column_to_layer_task
                 )
+                add_task_to_running_queue(task_name=path, status="processing")
             return True
 
         except Exception as e:
@@ -152,7 +163,7 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
             None
         """
         try:
-            root_groups = self.settings.childGroups()
+            root_groups = get_connection_child_groups()
             self.mTablesTreeView.setModel(self.model)
             self.cmbConnections.clear()
             for group in root_groups:

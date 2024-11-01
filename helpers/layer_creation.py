@@ -1,3 +1,4 @@
+import typing
 from ..providers.sf_data_source_provider import SFDataProvider
 from qgis.core import (
     QgsFeature,
@@ -237,7 +238,7 @@ def check_table_exceeds_size(
     auth_information: dict,
     table_information: dict,
     connection_name: str,
-    limit_size: int = 100000,
+    limit_size: int = 50000,
 ) -> bool:
     """
     Checks if the number of rows in a specified table exceeds a given limit.
@@ -291,6 +292,7 @@ def get_srid_from_table(
     table_information: dict,
     connection_name: str,
     column_name: str,
+    context_information: typing.Dict[str, typing.Union[str, None]],
 ) -> int:
     """
     Retrieves the SRID (Spatial Reference Identifier) for a specified column in a table.
@@ -312,6 +314,7 @@ def get_srid_from_table(
     cur_srid = sf_data_provider.execute_query(
         query=qre,
         connection_name=connection_name,
+        context_information=context_information,
     )
 
     srid = cur_srid.fetchone()[0]

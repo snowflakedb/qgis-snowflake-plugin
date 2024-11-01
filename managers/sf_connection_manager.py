@@ -1,4 +1,5 @@
 from typing import Dict
+import typing
 import snowflake.connector
 
 from ..helpers.utils import get_auth_information
@@ -132,13 +133,20 @@ class SFConnectionManager:
         """
         try:
             if connection_name in self.opened_connections:
-                return self.opened_connections[connection_name].cursor()
+                connection = self.opened_connections[connection_name]
+                if connection.expired:
+                    self.reconnect(connection_name)
+                    connection = self.opened_connections[connection_name]
+                return connection.cursor()
             return None
         except Exception as e:
             raise e
 
     def execute_query(
-        self, connection_name: str, query: str
+        self,
+        connection_name: str,
+        query: str,
+        context_information: Dict[str, typing.Union[str, None]] = None,
     ) -> snowflake.connector.cursor.SnowflakeCursor:
         """
         Executes the given query on the specified connection.
@@ -155,6 +163,9 @@ class SFConnectionManager:
         """
         try:
             cursor = self.create_cursor(connection_name)
+            if context_information is not None:
+                if "schema_name" in context_information:
+                    cursor.execute(f"USE SCHEMA {context_information['schema_name']}")
             cursor.execute(query)
             return cursor
         except Exception as e:

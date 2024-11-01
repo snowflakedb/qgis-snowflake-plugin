@@ -1,3 +1,4 @@
+import typing
 from ..helpers.data_base import get_cursor_description
 from ..helpers.utils import get_qsettings, get_authentification_information
 from ..helpers.layer_creation import get_layers, get_srid_from_table
@@ -13,7 +14,11 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
     on_handle_error = pyqtSignal(str, str)
 
     def __init__(
-        self, connection_name: str, query: str, geo_column_name: str, layer_name: str
+        self,
+        context_information: typing.Dict[str, typing.Union[str, None]],
+        query: str,
+        geo_column_name: str,
+        layer_name: str,
     ):
         try:
             self.query = query
@@ -25,10 +30,11 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
             )
             self.settings = get_qsettings()
             self.auth_information = get_authentification_information(
-                self.settings, connection_name
+                self.settings, context_information["connection_name"]
             )
             self.database_name = self.auth_information["database"]
-            self.connection_name = connection_name
+            self.connection_name = context_information["connection_name"]
+            self.context_information = context_information
         except Exception as e:
             self.on_handle_error.emit(
                 "SFConvertColumnToLayerTask init failed",
@@ -47,6 +53,7 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
                 auth_information=self.auth_information,
                 query=self.query,
                 connection_name=self.connection_name,
+                context_information=self.context_information,
             )
 
             column_names = ""
@@ -65,11 +72,12 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
                 auth_information=self.auth_information,
                 table_information={
                     "database": self.database_name,
-                    "schema": self.schema,
-                    "table": self.table,
+                    "schema": self.context_information["schema_name"],
+                    "table": self.context_information["table_name"],
                 },
                 connection_name=self.connection_name,
-                column_name=self.column,
+                column_name=self.geo_column_name,
+                context_information=self.context_information,
             )
 
             error_cancel_status, self.layers = get_layers(

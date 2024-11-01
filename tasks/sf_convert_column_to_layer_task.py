@@ -1,7 +1,11 @@
 import traceback
 
 from ..helpers.data_base import get_columns_cursor
-from ..helpers.utils import get_qsettings, get_authentification_information
+from ..helpers.utils import (
+    get_qsettings,
+    get_authentification_information,
+    remove_task_from_running_queue,
+)
 from ..helpers.layer_creation import get_layers, get_srid_from_table
 from qgis.core import (
     QgsMapLayer,
@@ -16,7 +20,7 @@ class SFConvertColumnToLayerTask(QgsTask):
     on_handle_error = pyqtSignal(str, str)
     on_handle_warning = pyqtSignal(str, str)
 
-    def __init__(self, connection_name: str, information_dict: dict):
+    def __init__(self, connection_name: str, information_dict: dict, path: str) -> None:
         """
         Initializes a SFConvertColumnToLayerTask object.
 
@@ -29,6 +33,7 @@ class SFConvertColumnToLayerTask(QgsTask):
 
         """
         try:
+            self.path = path
             self.column = information_dict["column"]
             self.table = information_dict["table"]
             self.schema = information_dict["schema"]
@@ -100,7 +105,7 @@ class SFConvertColumnToLayerTask(QgsTask):
             query = f"""SELECT {query_columns}
 FROM "{self.database_name}"."{self.schema}"."{self.table}"
 ORDER BY RANDOM()
-LIMIT 100000"""
+LIMIT 50000"""
 
             layer_pre_name = f"{self.auth_information['database']}.{self.information_dict['schema']}.{self.information_dict['table']}_{self.information_dict['column']}"
 
@@ -137,3 +142,4 @@ LIMIT 100000"""
                 if isinstance(layer, QgsMapLayer):
                     QgsProject.instance().addMapLayer(layer)
                     QgsProject.instance().layerTreeRoot()
+                    remove_task_from_running_queue(self.path)

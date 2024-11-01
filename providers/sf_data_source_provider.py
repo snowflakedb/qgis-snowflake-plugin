@@ -1,3 +1,4 @@
+import typing
 from ..entities.sf_feature_iterator import SFFeatureIterator
 from ..managers.sf_connection_manager import SFConnectionManager
 from PyQt5.QtCore import QVariant
@@ -68,7 +69,10 @@ class SFDataProvider(QgsDataProvider):
             return QVariant.String
 
     def execute_query(
-        self, query: str, connection_name: str
+        self,
+        query: str,
+        connection_name: str,
+        context_information: typing.Dict[str, typing.Union[str, None]] = None,
     ) -> snowflake.connector.cursor.SnowflakeCursor:
         """
         Executes the given query on the specified connection.
@@ -80,7 +84,11 @@ class SFDataProvider(QgsDataProvider):
         Raises:
             Exception: If there is an error executing the query.
         """
-        return self.connection_manager.execute_query(connection_name, query=query)
+        return self.connection_manager.execute_query(
+            connection_name=connection_name,
+            query=query,
+            context_information=context_information,
+        )
 
     snowflake_type_codes = {
         0: QVariant.Int,  # BIGINT_COL, DECIMAL_COL, ID, INT_COL, NUM_COL, SMALLINT_COL, TINYINT_COL
@@ -101,7 +109,11 @@ class SFDataProvider(QgsDataProvider):
     }
 
     def load_data(
-        self, query: str, connection_name: str, force_refresh: bool = False
+        self,
+        query: str,
+        connection_name: str,
+        force_refresh: bool = False,
+        context_information: typing.Dict[str, typing.Union[str, None]] = None,
     ) -> None:
         """
         Loads data from a Snowflake database based on the given query and connection name.
@@ -120,7 +132,11 @@ class SFDataProvider(QgsDataProvider):
             ):
                 self.connection_manager.connect(connection_name, self.connection_params)
             cursor: snowflake.connector.cursor.SnowflakeCursor = (
-                self.connection_manager.execute_query(connection_name, query)
+                self.connection_manager.execute_query(
+                    connection_name=connection_name,
+                    query=query,
+                    context_information=context_information,
+                )
             )
 
             # Create QgsFields based on Snowflake schema

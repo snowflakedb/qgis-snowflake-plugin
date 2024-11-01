@@ -7,11 +7,14 @@ from ..helpers.data_base import (
 from ..helpers.messages import get_ok_cancel_message_box
 from ..helpers.layer_creation import check_table_exceeds_size
 from ..helpers.utils import (
+    add_task_to_running_queue,
     get_authentification_information,
+    get_connection_child_groups,
     get_qsettings,
     on_handle_error,
     on_handle_warning,
     remove_connection,
+    task_is_running,
 )
 from ..tasks.sf_convert_column_to_layer_task import SFConvertColumnToLayerTask
 from ..ui.sf_connection_string_dialog import SFConnectionStringDialog
@@ -151,7 +154,7 @@ class SFDataItem(QgsDataItem):
         Returns:
             None
         """
-        root_groups = self.settings.childGroups()
+        root_groups = get_connection_child_groups()
         for group in root_groups:
             item = self._create_data_item(
                 name=group,
@@ -385,7 +388,7 @@ ORDER BY {column_name}"""
             bool: True if the double click event is handled successfully, False otherwise.
         """
         try:
-            if self.item_type == "table":
+            if self.item_type == "table" and not task_is_running(self.path()):
                 schema_data_item = self.parent()
                 auth_information = get_authentification_information(
                     self.settings, self.connection_name
@@ -417,18 +420,20 @@ ORDER BY {column_name}"""
                         return False
 
                 snowflake_covert_column_to_layer_task = SFConvertColumnToLayerTask(
-                    self.connection_name,
-                    information_dict,
+                    connection_name=self.connection_name,
+                    information_dict=information_dict,
+                    path=self.path(),
                 )
                 snowflake_covert_column_to_layer_task.on_handle_error.connect(
-                    on_handle_error
+                    slot=on_handle_error
                 )
                 snowflake_covert_column_to_layer_task.on_handle_warning.connect(
-                    on_handle_warning
+                    slot=on_handle_warning
                 )
                 QgsApplication.taskManager().addTask(
-                    snowflake_covert_column_to_layer_task
+                    task=snowflake_covert_column_to_layer_task
                 )
+                add_task_to_running_queue(task_name=self.path(), status="processing")
 
             return True
         except Exception as _:
@@ -513,7 +518,17 @@ ORDER BY {column_name}"""
         """
         from ..ui.sf_sql_query_dialog import SFSQLQueryDialog
 
-        sf_sql_query_dialog = SFSQLQueryDialog(self.connection_name, None)
+        path_splitted = self.path().split("/")
+        context_information = {
+            "connection_name": path_splitted[2] if len(path_splitted) > 2 else None,
+            "schema_name": path_splitted[3] if len(path_splitted) > 3 else None,
+            "table_name": path_splitted[4] if len(path_splitted) > 4 else None,
+        }
+
+        sf_sql_query_dialog = SFSQLQueryDialog(
+            context_information=context_information,
+            parent=None,
+        )
         sf_sql_query_dialog.update_connections_signal.connect(
             self.on_update_connections_handle
         )
