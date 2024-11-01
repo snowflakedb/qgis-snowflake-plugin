@@ -1,3 +1,4 @@
+import typing
 from ..helpers.utils import get_authentification_information, get_qsettings
 from qgis.PyQt.QtCore import QSettings
 from ..providers.sf_data_source_provider import SFDataProvider
@@ -114,7 +115,10 @@ ORDER BY TABLE_NAME"""
 
 
 def get_features_iterator(
-    auth_information: dict, query: str, connection_name: str
+    auth_information: dict,
+    query: str,
+    connection_name: str,
+    context_information: typing.Dict[str, typing.Union[str, None]] = None,
 ) -> SFFeatureIterator:
     """
     Retrieves an iterator for features from a Salesforce data provider.
@@ -129,7 +133,11 @@ def get_features_iterator(
     """
     sf_data_provider = SFDataProvider(auth_information)
 
-    sf_data_provider.load_data(query, connection_name)
+    sf_data_provider.load_data(
+        query=query,
+        connection_name=connection_name,
+        context_information=context_information,
+    )
     return sf_data_provider.get_feature_iterator()
 
 
@@ -169,7 +177,10 @@ def get_columns_cursor(
 
 
 def get_cursor_description(
-    auth_information: dict, query: str, connection_name: str
+    auth_information: dict,
+    query: str,
+    connection_name: str,
+    context_information: typing.Dict[str, typing.Union[str, None]],
 ) -> list[snowflake.connector.cursor.ResultMetadata]:
     """
     Executes a query on a Snowflake database and retrieves the cursor description.
@@ -183,7 +194,11 @@ def get_cursor_description(
         list[snowflake.connector.cursor.ResultMetadata]: A list containing the metadata of the result set.
     """
     sf_data_provider = SFDataProvider(auth_information)
-    cur_query = sf_data_provider.execute_query(query, connection_name)
+    cur_query = sf_data_provider.execute_query(
+        query=query,
+        connection_name=connection_name,
+        context_information=context_information,
+    )
     cur_description = cur_query.description
     cur_query.close()
     return cur_description

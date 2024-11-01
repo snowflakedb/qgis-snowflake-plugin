@@ -27,12 +27,12 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
 
     def __init__(
         self,
-        connection_name: str,
+        context_information: typing.Dict[str, typing.Union[str, None]],
         parent: typing.Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self.setupUi(self)
-        self.connection_name = connection_name
+        self.context_information = context_information
         self.settings = get_qsettings()
         self.temp_deactivated_options()
         self.mExecuteButton.setEnabled(True)
@@ -57,10 +57,10 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
                     else self.mSqlErrorText.text()
                 )
                 sf_convert_sql_query_to_layer_task = SFConvertSQLQueryToLayerTask(
-                    self.connection_name,
-                    query_without_semicolon,
-                    self.mGeometryColumnComboBox.currentText(),
-                    self.mLayerNameLineEdit.text(),
+                    context_information=self.context_information,
+                    query=query_without_semicolon,
+                    geo_column_name=self.mGeometryColumnComboBox.currentText(),
+                    layer_name=self.mLayerNameLineEdit.text(),
                 )
                 sf_convert_sql_query_to_layer_task.on_handle_error.connect(
                     self.on_handle_error
@@ -87,8 +87,8 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
     def on_execute_button_clicked(self):
         try:
             snowflake_covert_column_to_layer_task = SFExecuteSQLQueryTask(
-                self.connection_name,
-                self.mSqlErrorText.text(),
+                context_information=self.context_information,
+                query=self.mSqlErrorText.text(),
                 limit=100,
             )
             snowflake_covert_column_to_layer_task.on_handle_error.connect(

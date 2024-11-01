@@ -13,8 +13,6 @@ def get_ok_cancel_message_box(title: str, text: str) -> int:
     message_box.exec_()
 
     if message_box.clickedButton() == proceed_button:
-        print("Proceed button clicked.")
         return QtWidgets.QMessageBox.Ok
     elif message_box.clickedButton() == cancel_button:
-        print("Cancel button clicked.")
         return QtWidgets.QMessageBox.Cancel

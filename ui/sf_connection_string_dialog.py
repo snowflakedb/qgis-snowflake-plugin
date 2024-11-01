@@ -11,6 +11,8 @@ from qgis.PyQt.QtWidgets import (
 import os
 import typing
 
+from ..helpers.utils import get_qsettings, remove_connection, set_connection_settings
+
 from ..managers.sf_connection_manager import SFConnectionManager
 
 
@@ -37,9 +39,7 @@ class SFConnectionStringDialog(QDialog, FORM_CLASS_SFCS):
         self.btnConnect.clicked.connect(self.test_connection_clicked)
         ok_button = self.buttonBox.button(QDialogButtonBox.Ok)
         ok_button.clicked.connect(self.button_box_ok_clicked)
-        self.settings = QSettings(
-            QSettings.IniFormat, QSettings.UserScope, "Snowflake", "SF_QGIS_PLUGIN"
-        )
+        self.settings = get_qsettings()
         self.cbxConnectionType.addItem("Default Authentication")
         self.cbxConnectionType.addItem("Single sign-on (SSO)")
         self.connection_name = connection_name
@@ -84,20 +84,17 @@ class SFConnectionStringDialog(QDialog, FORM_CLASS_SFCS):
             update_connections_signal: Emitted after the connection settings have been saved.
         """
         try:
-            from ..helpers.utils import remove_connection
-
-            self.settings.beginGroup(self.txtName.text())
-            self.settings.setValue("warehouse", self.txtWarehouse.text())
-            self.settings.setValue("account", self.txtAccount.text())
-            self.settings.setValue("database", self.txtDatabase.text())
-            self.settings.setValue("username", self.mAuthSettings.username())
-            self.settings.setValue(
-                "connection_type", self.cbxConnectionType.currentText()
-            )
+            conn_settings = {
+                "name": self.txtName.text(),
+                "warehouse": self.txtWarehouse.text(),
+                "account": self.txtAccount.text(),
+                "database": self.txtDatabase.text(),
+                "username": self.mAuthSettings.username(),
+                "connection_type": self.cbxConnectionType.currentText(),
+            }
             if self.cbxConnectionType.currentText() == "Default Authentication":
-                self.settings.setValue("password", self.mAuthSettings.password())
-            self.settings.endGroup()
-            self.settings.sync()
+                conn_settings["password"] = self.mAuthSettings.password()
+            set_connection_settings(conn_settings)
             if self.connection_name != self.txtName.text():
                 if self.connection_name is not None and self.connection_name != "":
                     remove_connection(self.settings, self.connection_name)

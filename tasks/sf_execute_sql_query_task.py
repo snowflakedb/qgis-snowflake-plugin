@@ -11,7 +11,10 @@ class SFExecuteSQLQueryTask(QgsTask):
     on_data_ready = pyqtSignal(list, list)
 
     def __init__(
-        self, connection_name: str, query: str, limit: typing.Union[int, None] = None
+        self,
+        context_information: typing.Dict[str, typing.Union[str, None]],
+        query: str,
+        limit: typing.Union[int, None] = None,
     ):
         try:
             self.query = query
@@ -21,10 +24,10 @@ class SFExecuteSQLQueryTask(QgsTask):
             )
             self.settings = get_qsettings()
             self.auth_information = get_authentification_information(
-                self.settings, connection_name
+                self.settings, context_information["connection_name"]
             )
             self.database_name = self.auth_information["database"]
-            self.connection_name = connection_name
+            self.context_information = context_information
             self.limit = limit
         except Exception as e:
             self.on_handle_error.emit(
@@ -43,7 +46,8 @@ class SFExecuteSQLQueryTask(QgsTask):
             feature_iterator = get_features_iterator(
                 auth_information=self.auth_information,
                 query=self.query,
-                connection_name=self.connection_name,
+                connection_name=self.context_information["connection_name"],
+                context_information=self.context_information,
             )
             self.columns_descriptions = feature_iterator.cursor.description
 
