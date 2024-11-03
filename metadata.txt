@@ -6,7 +6,7 @@
 name=Snowflake Connector for QGIS
 qgisMinimumVersion=3.0
 description=This package includes the Snowflake Connector for QGIS.
-version=0.7
+version=0.8.1
 author=Snowflake Inc.
 email=erick.cuberojimenez@snowflake.com
 
