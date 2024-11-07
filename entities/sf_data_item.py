@@ -388,55 +388,78 @@ ORDER BY {column_name}"""
             bool: True if the double click event is handled successfully, False otherwise.
         """
         try:
-            if self.item_type == "table" and not task_is_running(self.path()):
-                schema_data_item = self.parent()
-                auth_information = get_authentification_information(
-                    self.settings, self.connection_name
-                )
-                information_dict = {
-                    "schema": schema_data_item.clean_name,
-                    "table": self.clean_name,
-                    "column": self.geom_column,
-                    "database": auth_information["database"],
-                }
+            # if self.item_type == "table" and not task_is_running(self.path()):
+            #     schema_data_item = self.parent()
+            #     auth_information = get_authentification_information(
+            #         self.settings, self.connection_name
+            #     )
+            #     information_dict = {
+            #         "schema": schema_data_item.clean_name,
+            #         "table": self.clean_name,
+            #         "column": self.geom_column,
+            #         "database": auth_information["database"],
+            #     }
 
-                table_exceeds_size = check_table_exceeds_size(
-                    auth_information=auth_information,
-                    table_information=information_dict,
-                    connection_name=self.connection_name,
-                )
+            #     table_exceeds_size = check_table_exceeds_size(
+            #         auth_information=auth_information,
+            #         table_information=information_dict,
+            #         connection_name=self.connection_name,
+            #     )
 
-                if table_exceeds_size:
-                    response = get_ok_cancel_message_box(
-                        "SFConvertColumnToLayerTask Dataset is too large",
-                        (
-                            "The dataset is too large. Please consider using "
-                            '"Execute SQL" to limit the result set. If you click '
-                            '"Proceed," only a random sample of 50000 rows '
-                            "will be loaded."
-                        ),
-                    )
-                    if response == QMessageBox.Cancel:
-                        return False
+            #     if table_exceeds_size:
+            #         response = get_ok_cancel_message_box(
+            #             "SFConvertColumnToLayerTask Dataset is too large",
+            #             (
+            #                 "The dataset is too large. Please consider using "
+            #                 '"Execute SQL" to limit the result set. If you click '
+            #                 '"Proceed," only a random sample of 1 million rows '
+            #                 "will be loaded."
+            #             ),
+            #         )
+            #         if response == QMessageBox.Cancel:
+            #             return False
 
-                snowflake_covert_column_to_layer_task = SFConvertColumnToLayerTask(
-                    connection_name=self.connection_name,
-                    information_dict=information_dict,
-                    path=self.path(),
-                )
-                snowflake_covert_column_to_layer_task.on_handle_error.connect(
-                    slot=on_handle_error
-                )
-                snowflake_covert_column_to_layer_task.on_handle_warning.connect(
-                    slot=on_handle_warning
-                )
-                QgsApplication.taskManager().addTask(
-                    task=snowflake_covert_column_to_layer_task
-                )
-                add_task_to_running_queue(task_name=self.path(), status="processing")
+            #     snowflake_covert_column_to_layer_task = SFConvertColumnToLayerTask(
+            #         connection_name=self.connection_name,
+            #         information_dict=information_dict,
+            #         path=self.path(),
+            #     )
+            #     snowflake_covert_column_to_layer_task.on_handle_error.connect(
+            #         slot=on_handle_error
+            #     )
+            #     snowflake_covert_column_to_layer_task.on_handle_warning.connect(
+            #         slot=on_handle_warning
+            #     )
+            #     QgsApplication.taskManager().addTask(
+            #         task=snowflake_covert_column_to_layer_task
+            #     )
+            #     add_task_to_running_queue(task_name=self.path(), status="processing")
+            schema_data_item = self.parent()
+            auth_information = get_authentification_information(
+                self.settings, self.connection_name
+            )
+            information_dict = {
+                "schema": schema_data_item.clean_name,
+                "table": self.clean_name,
+                "column": self.geom_column,
+                "database": auth_information["database"],
+            }
+            uri = (
+                f"connection_name={self.connection_name} sql_query= "
+                f"schema_name={schema_data_item.clean_name} table_name={self.clean_name} srid={4326} "
+                f"geom_column={self.geom_column} geometry_type=POLYGON"
+            )
+            from qgis.core import (
+                QgsProject,
+                QgsVectorLayer,
+            )
 
+            print(uri)
+            layer = QgsVectorLayer(uri, "layer_name", "snowflakedb")
+            QgsProject.instance().addMapLayer(layer)
             return True
-        except Exception as _:
+        except Exception as e:
+            print(str(e))
             return False
 
     def actions(self, parent: QWidget) -> typing.List[QAction]:
