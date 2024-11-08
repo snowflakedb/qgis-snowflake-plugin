@@ -12,9 +12,9 @@ class SFFeatureSource(QgsAbstractFeatureSource):
     def __init__(self, provider):
         """Constructor"""
         super().__init__()
-        from ..providers.sf_provider import SFProvider
+        from .sf_vector_data_provider import SFVectorDataProvider
 
-        self._provider: SFProvider = provider
+        self._provider: SFVectorDataProvider = provider
 
         self._expression_context = QgsExpressionContext()
         self._expression_context.appendScope(QgsExpressionContextUtils.globalScope())

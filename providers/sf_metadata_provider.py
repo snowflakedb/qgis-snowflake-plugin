@@ -1,16 +1,16 @@
 import re
 from typing import Dict
-from qgis.core import QgsProviderMetadata, QgsReadWriteContext
+from qgis.core import QgsProviderMetadata
 
-from ..providers.sf_provider import SFProvider
+from .sf_vector_data_provider import SFVectorDataProvider
 
 
 class SFMetadataProvider(QgsProviderMetadata):
     def __init__(self):
         super().__init__(
-            SFProvider.providerKey(),
-            SFProvider.description(),
-            SFProvider.createProvider,
+            SFVectorDataProvider.providerKey(),
+            SFVectorDataProvider.description(),
+            SFVectorDataProvider.createProvider,
         )
 
     def decodeUri(self, uri: str) -> Dict[str, str]:
@@ -39,52 +39,10 @@ class SFMetadataProvider(QgsProviderMetadata):
         srid = parts["srid"]
         geo_column = parts["geo_column"]
         geometry_type = parts["geometry_type"]
+        geo_column_type = parts["geo_column_type"]
         uri = (
-            f'connection_name="{connection_name}" sql="{sql_query}" '
-            f'schema_name="{schema_name}" table_name="{table_name}" srid={srid} '
-            f'geo_column="{geo_column}" geometry_type="{geometry_type}"'
+            f"connection_name={connection_name} sql={sql_query} "
+            f"schema_name={schema_name} table_name={table_name} srid={srid} "
+            f"geo_column={geo_column} geometry_type={geometry_type} geo_column_type={geo_column_type}"
         )
         return uri
-
-    # def absoluteToRelativeUri(self, uri: str, context: QgsReadWriteContext) -> str:
-    #     """Convert an absolute uri to a relative one
-
-    #     The uri is parsed and then the path converted to a relative path by writePath
-    #     Then, a new uri with a relative path is encoded.
-
-    #     This only works for QGIS 3.30 and above as it did not exist before.
-    #     Before this version, it is not possible to save an uri as relative in a project.
-
-    #     :example:
-
-    #     uri = f"path=/home/test/gis/insee/bureaux_vote.db table=cities epsg=4326"
-    #     relative_uri = f"path=./bureaux_vote.db table=cities epsg=4326"
-
-    #     :param str uri: uri to convert
-    #     :param QgsReadWriteContext context: qgis context
-    #     :returns: uri with a relative path
-    #     """
-    #     decoded_uri = self.decodeUri(uri)
-    #     decoded_uri["path"] = context.pathResolver().writePath(decoded_uri["path"])
-    #     return self.encodeUri(decoded_uri)
-
-    # def relativeToAbsoluteUri(self, uri: str, context: QgsReadWriteContext) -> str:
-    #     """Convert a relative uri to an absolute one
-
-    #     The uri is parsed and then the path converted to an absolute path by readPath
-    #     Then, a new uri with an absolute path is encoded.
-
-    #     This only works for QGIS 3.30 and above as it did not exist before.
-
-    #     :example:
-
-    #     uri = f"path=./bureaux_vote.db table=cities epsg=4326"
-    #     absolute_uri = f"path=/home/test/gis/insee/bureaux_vote.db table=cities epsg=4326"
-
-    #     :param str uri: uri to convert
-    #     :param QgsReadWriteContext context: qgis context
-    #     :returns: uri with an absolute path
-    #     """
-    #     decoded_uri = self.decodeUri(uri)
-    #     decoded_uri["path"] = context.pathResolver().readPath(decoded_uri["path"])
-    #     return self.encodeUri(decoded_uri)

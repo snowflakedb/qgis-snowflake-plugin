@@ -2,7 +2,10 @@ from ..managers.sf_connection_manager import SFConnectionManager
 from ..helpers.data_base import (
     get_column_iterator,
     get_features_iterator,
+    get_geo_column_type,
+    get_srid_from_table_geo_column,
     get_table_column_iterator,
+    get_type_from_table_geo_column,
 )
 from ..helpers.messages import get_ok_cancel_message_box
 from ..helpers.layer_creation import check_table_exceeds_size
@@ -14,12 +17,20 @@ from ..helpers.utils import (
     on_handle_error,
     on_handle_warning,
     remove_connection,
+    remove_task_from_running_queue,
     task_is_running,
 )
 from ..tasks.sf_convert_column_to_layer_task import SFConvertColumnToLayerTask
 from ..ui.sf_connection_string_dialog import SFConnectionStringDialog
 from PyQt5.QtCore import pyqtSignal
-from qgis.core import QgsDataItem, Qgis, QgsApplication, QgsErrorItem
+from qgis.core import (
+    QgsDataItem,
+    Qgis,
+    QgsApplication,
+    QgsErrorItem,
+    QgsProject,
+    QgsVectorLayer,
+)
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QMessageBox, QAction, QWidget
 import typing
@@ -62,6 +73,7 @@ class SFDataItem(QgsDataItem):
         self.message_handler.connect(self.on_message_handler)
         self.clean_name = clean_name
         self.geom_column = geom_column
+        self._running_tasks = {}
 
     def createChildren(self) -> typing.List["QgsDataItem"]:
         """
@@ -388,75 +400,100 @@ ORDER BY {column_name}"""
             bool: True if the double click event is handled successfully, False otherwise.
         """
         try:
-            # if self.item_type == "table" and not task_is_running(self.path()):
-            #     schema_data_item = self.parent()
+            if self.item_type == "table" and not task_is_running(self.path()):
+                schema_data_item = self.parent()
+                auth_information = get_authentification_information(
+                    self.settings, self.connection_name
+                )
+                information_dict = {
+                    "schema": schema_data_item.clean_name,
+                    "table": self.clean_name,
+                    "column": self.geom_column,
+                    "database": auth_information["database"],
+                }
+
+                table_exceeds_size = check_table_exceeds_size(
+                    auth_information=auth_information,
+                    table_information=information_dict,
+                    connection_name=self.connection_name,
+                )
+
+                if table_exceeds_size:
+                    response = get_ok_cancel_message_box(
+                        "SFConvertColumnToLayerTask Dataset is too large",
+                        (
+                            "The dataset is too large. Please consider using "
+                            '"Execute SQL" to limit the result set. If you click '
+                            '"Proceed," only a random sample of 1 million rows '
+                            "will be loaded."
+                        ),
+                    )
+                    if response == QMessageBox.Cancel:
+                        return False
+
+                snowflake_covert_column_to_layer_task = SFConvertColumnToLayerTask(
+                    connection_name=self.connection_name,
+                    information_dict=information_dict,
+                    path=self.path(),
+                )
+                snowflake_covert_column_to_layer_task.on_handle_error.connect(
+                    slot=on_handle_error
+                )
+                snowflake_covert_column_to_layer_task.on_handle_warning.connect(
+                    slot=on_handle_warning
+                )
+                QgsApplication.taskManager().addTask(
+                    task=snowflake_covert_column_to_layer_task
+                )
+                add_task_to_running_queue(task_name=self.path(), status="processing")
+            ##########################################################################
+            # schema_data_item: "SFDataItem" = self.parent()
+            # if (
+            #     self.item_type == "table"
+            #     and self.path() not in schema_data_item._running_tasks
+            # ):
+            #     schema_data_item._running_tasks[self.path()] = "processing"
             #     auth_information = get_authentification_information(
             #         self.settings, self.connection_name
             #     )
-            #     information_dict = {
-            #         "schema": schema_data_item.clean_name,
-            #         "table": self.clean_name,
-            #         "column": self.geom_column,
-            #         "database": auth_information["database"],
+            #     context_information = {
+            #         "connection_name": self.connection_name,
+            #         "database_name": auth_information["database"],
+            #         "schema_name": schema_data_item.clean_name,
+            #         "table_name": self.clean_name,
             #     }
-
-            #     table_exceeds_size = check_table_exceeds_size(
-            #         auth_information=auth_information,
-            #         table_information=information_dict,
-            #         connection_name=self.connection_name,
+            #     srid = get_srid_from_table_geo_column(
+            #         geo_column_name=self.geom_column,
+            #         table_name=self.clean_name,
+            #         context_information=context_information,
             #     )
-
-            #     if table_exceeds_size:
-            #         response = get_ok_cancel_message_box(
-            #             "SFConvertColumnToLayerTask Dataset is too large",
-            #             (
-            #                 "The dataset is too large. Please consider using "
-            #                 '"Execute SQL" to limit the result set. If you click '
-            #                 '"Proceed," only a random sample of 1 million rows '
-            #                 "will be loaded."
-            #             ),
+            #     geo_type_list = get_type_from_table_geo_column(
+            #         geo_column_name=self.geom_column,
+            #         table_name=self.clean_name,
+            #         context_information=context_information,
+            #     )
+            #     geo_column_type = get_geo_column_type(
+            #         geo_column_name=self.geom_column,
+            #         context_information=context_information,
+            #     )
+            #     for geo_type in geo_type_list:
+            #         uri = (
+            #             f"connection_name={self.connection_name} sql_query= "
+            #             f"schema_name={schema_data_item.clean_name} "
+            #             f"table_name={self.clean_name} srid={srid} "
+            #             f"geom_column={self.geom_column} "
+            #             f"geometry_type={geo_type} "
+            #             f"geo_column_type={geo_column_type}"
             #         )
-            #         if response == QMessageBox.Cancel:
-            #             return False
 
-            #     snowflake_covert_column_to_layer_task = SFConvertColumnToLayerTask(
-            #         connection_name=self.connection_name,
-            #         information_dict=information_dict,
-            #         path=self.path(),
-            #     )
-            #     snowflake_covert_column_to_layer_task.on_handle_error.connect(
-            #         slot=on_handle_error
-            #     )
-            #     snowflake_covert_column_to_layer_task.on_handle_warning.connect(
-            #         slot=on_handle_warning
-            #     )
-            #     QgsApplication.taskManager().addTask(
-            #         task=snowflake_covert_column_to_layer_task
-            #     )
-            #     add_task_to_running_queue(task_name=self.path(), status="processing")
-            schema_data_item = self.parent()
-            auth_information = get_authentification_information(
-                self.settings, self.connection_name
-            )
-            information_dict = {
-                "schema": schema_data_item.clean_name,
-                "table": self.clean_name,
-                "column": self.geom_column,
-                "database": auth_information["database"],
-            }
-            uri = (
-                f"connection_name={self.connection_name} sql_query= "
-                f"schema_name={schema_data_item.clean_name} table_name={self.clean_name} srid={4326} "
-                f"geom_column={self.geom_column} geometry_type=POLYGON"
-            )
-            from qgis.core import (
-                QgsProject,
-                QgsVectorLayer,
-            )
-
-            print(uri)
-            layer = QgsVectorLayer(uri, "layer_name", "snowflakedb")
-            QgsProject.instance().addMapLayer(layer)
+            #         layer_name = (
+            #             self.clean_name
+            #             if len(geo_type_list) == 1
+            #             else f"{self.clean_name}_{geo_type}"
+            #         )
+            #         layer = QgsVectorLayer(uri, layer_name, "snowflakedb")
+            #         QgsProject.instance().addMapLayer(layer)
+            #     del schema_data_item._running_tasks[self.path()]
             return True
         except Exception as e:
             print(str(e))

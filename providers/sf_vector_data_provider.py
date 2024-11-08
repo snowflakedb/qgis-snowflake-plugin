@@ -12,9 +12,9 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import QMetaType
 
-from ..providers.sf_feature_iterator import SFFeatureIterator
+from .sf_feature_iterator import SFFeatureIterator
 
-from ..providers.sf_feature_source import SFFeatureSource
+from .sf_feature_source import SFFeatureSource
 
 from ..helpers.utils import get_authentification_information, get_qsettings
 from ..managers.sf_connection_manager import SFConnectionManager
@@ -26,11 +26,10 @@ from ..helpers.mappings import (
 )
 
 
-class SFProvider(QgsVectorDataProvider):
+class SFVectorDataProvider(QgsVectorDataProvider):
     def __init__(
         self,
         uri="",
-        # uri_model = path=/home/path/my_db.db table=the_table
         providerOptions=QgsDataProvider.ProviderOptions(),
         flags=QgsDataProvider.ReadFlags(),
     ):
@@ -53,6 +52,7 @@ class SFProvider(QgsVectorDataProvider):
                 self._srid,
                 self._column_geom,
                 self._geometry_type,
+                self._geo_column_type,
             ) = parse_uri(uri)
 
         except Exception as exc:
@@ -73,8 +73,8 @@ class SFProvider(QgsVectorDataProvider):
         self._auth_information = get_authentification_information(
             self._settings, self._context_information["connection_name"]
         )
-        print("auth")
-        print(self._auth_information)
+        # print("auth")
+        # print(self._auth_information)
 
         self.connect_database()
 
@@ -85,12 +85,12 @@ class SFProvider(QgsVectorDataProvider):
             # If the rowid pseudocolumn is not in the sql add it to
             # the clause. It will be used to build the feature ids if
             # the table does not have a primary key.
-            cur = self.connection_manager.execute_query(
-                connection_name=self._connection_name,
-                query=self._sql_query,
-                context_information=self._context_information,
-            )
-            columns = cur.description
+            # cur = self.connection_manager.execute_query(
+            #     connection_name=self._connection_name,
+            #     query=self._sql_query,
+            #     context_information=self._context_information,
+            # )
+            # columns = cur.description
             # if "rowid" not in columns:
             #     self._sql = re.sub(
             #         "select", "select rowid, ", self._sql, flags=re.IGNORECASE
@@ -98,7 +98,7 @@ class SFProvider(QgsVectorDataProvider):
 
             self._from_clause = f"({self._sql_query})"
         else:
-            self._from_clause = self._table_name
+            self._from_clause = f'"{self._table_name}"'
 
         self.get_geometry_column()
 
@@ -119,7 +119,7 @@ class SFProvider(QgsVectorDataProvider):
 
     @classmethod
     def createProvider(cls, uri, providerOptions, flags=QgsDataProvider.ReadFlags()):
-        return SFProvider(uri, providerOptions, flags)
+        return SFVectorDataProvider(uri, providerOptions, flags)
 
     def capabilities(self) -> QgsVectorDataProvider.Capabilities:
         return (
@@ -133,7 +133,7 @@ class SFProvider(QgsVectorDataProvider):
             if not self._is_valid:
                 self._feature_count = 0
             else:
-                query = f"select count(*) from {self._from_clause}"
+                query = f"SELECT COUNT(*) FROM {self._from_clause}"
                 if self.subsetString():
                     query += f" WHERE {self.subsetString()}"
 
@@ -161,7 +161,6 @@ class SFProvider(QgsVectorDataProvider):
 
     def connect_database(self):
         """Connects the database and loads the spatial extension"""
-        # self._con = self.ddb_wrapper.connect(read_only=True, requires_spatial=True)
         self.connection_manager: SFConnectionManager = (
             SFConnectionManager.get_instance()
         )
@@ -199,13 +198,13 @@ class SFProvider(QgsVectorDataProvider):
                 self._extent = QgsRectangle()
             else:
                 query = (
-                    f"select min(st_xmin({self._column_geom})), "
-                    f"min(st_ymin({self._column_geom})), "
-                    f"max(st_xmax({self._column_geom})), "
-                    f"max(st_ymax({self._column_geom})) "
-                    f"from {self._from_clause} "
-                    f"where {self._column_geom} is not null and "
-                    f"ST_ASGEOJSON({self._column_geom}):type ilike '{self._geometry_type}'"
+                    f'SELECT MIN(ST_XMIN("{self._column_geom}")), '
+                    f'MIN(ST_YMIN("{self._column_geom}")), '
+                    f'MAX(ST_XMAX("{self._column_geom}")), '
+                    f'MAX(ST_YMAX("{self._column_geom}")) '
+                    f"FROM {self._from_clause} "
+                    f'WHERE "{self._column_geom}" IS NOT NULL AND '
+                    f"ST_ASGEOJSON(\"{self._column_geom}\"):type ILIKE '{self._geometry_type}'"
                 )
 
                 cur = self.connection_manager.execute_query(
@@ -244,9 +243,9 @@ class SFProvider(QgsVectorDataProvider):
             if self._is_valid:
                 if not self._sql_query:
                     query = (
-                        "select column_name, data_type from information_schema.columns "
-                        f"WHERE table_name ilike '{self._table_name}' "
-                        "AND data_type not in ('GEOMETRY', 'GEOGRAPHY')"
+                        "SELECT column_name, data_type FROM information_schema.columns "
+                        f"WHERE table_name ILIKE '{self._table_name}' "
+                        "AND data_type NOT IN ('GEOMETRY', 'GEOGRAPHY')"
                     )
 
                     cur = self.connection_manager.execute_query(
@@ -307,7 +306,8 @@ class SFProvider(QgsVectorDataProvider):
             return False
 
         query = (
-            "SELECT table_name FROM information_schema.tables WHERE table_type = 'VIEW'"
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_type = 'VIEW'"
         )
         cur = self.connection_manager.execute_query(
             connection_name=self._connection_name,
@@ -329,9 +329,12 @@ class SFProvider(QgsVectorDataProvider):
         """
         column_name = self.fields().field(fieldIndex).name()
         results = set()
-        query = f"select distinct {column_name} from {self._from_clause} order by {column_name}"
+        query = (
+            f"SELECT DISTINCT {column_name} FROM {self._from_clause} "
+            f"ORDER BY {column_name}"
+        )
         if limit >= 0:
-            query += f" limit {limit}"
+            query += f" LIMIT {limit}"
 
         cur = self.connection_manager.execute_query(
             connection_name=self._connection_name,
@@ -360,7 +363,10 @@ class SFProvider(QgsVectorDataProvider):
             try:
                 cur = self.connection_manager.execute_query(
                     connection_name=self._connection_name,
-                    query=f"select count(*) from {self._from_clause} WHERE {subsetstring} LIMIT 0",
+                    query=(
+                        f"SELECT COUNT(*) FROM {self._from_clause} "
+                        f"WHERE {subsetstring} LIMIT 0"
+                    ),
                     context_information=self._context_information,
                 )
                 cur.close()

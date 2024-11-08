@@ -168,12 +168,20 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
             where_clause_list.append(subset_clause)
 
         # Apply the geometry filter
-        # if not filter_rect.isNull():
-        #     filter_geom_clause = (
-        #         f"ST_INTERSECTS({geom_column}, "
-        #         f"ST_GEOMETRYFROMWKT('{filter_rect.asWktPolygon()}'))"
-        #     )
-        #     where_clause_list.append(filter_geom_clause)
+        if not filter_rect.isNull():
+            filter_geom_clause = ""
+            if self._provider._geometry_type == "GEOMETRY":
+                filter_geom_clause = (
+                    f'ST_INTERSECTS("{geom_column}", '
+                    f"ST_GEOMETRYFROMWKT('{filter_rect.asWktPolygon()}'))"
+                )
+            if self._provider._geometry_type == "GEOGRAPHY":
+                filter_geom_clause = (
+                    f'ST_INTERSECTS("{geom_column}", '
+                    f"ST_GEOGRAPHYFROMWKT('{filter_rect.asWktPolygon()}'))"
+                )
+            if filter_geom_clause != "":
+                filter_geom_clause = f"and {filter_geom_clause}"
 
         # build the complete where clause
         where_clause = ""
@@ -183,7 +191,7 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                 for clause in where_clause_list[1:]:
                     where_clause += f" and {clause}"
 
-        geom_query = f"ST_ASWKB({geom_column}), {geom_column}, "
+        geom_query = f'ST_ASWKB("{geom_column}"), "{geom_column}", '
         self._request_no_geometry = (
             self._request.flags() & QgsFeatureRequest.Flag.NoGeometry
         )
@@ -202,11 +210,13 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
             index = self._provider._fields[self._provider.primary_key()].name()
             # order_by = index
 
+        filter_geo_type = f"ST_ASGEOJSON(\"{geom_column}\"):type ILIKE '{self._provider._geometry_type}'"
+
         final_query = (
             "select * from ("
             f"select {fields_name_for_query} "
             f"{geom_query} {index} "
-            f"from {self._provider._from_clause}) "
+            f"from {self._provider._from_clause} where {filter_geo_type} {filter_geom_clause}) "
             f"{where_clause} "
             # f"order by {order_by}"
         )
@@ -231,7 +241,6 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
             query=final_query,
             context_information=context_information,
         )
-        # self._result = self._provider.con().execute(final_query)
         self._index = 0
 
     def fetchFeature(self, f: QgsFeature) -> bool:
