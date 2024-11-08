@@ -168,8 +168,8 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
             where_clause_list.append(subset_clause)
 
         # Apply the geometry filter
+        filter_geom_clause = ""
         if not filter_rect.isNull():
-            filter_geom_clause = ""
             if self._provider._geometry_type == "GEOMETRY":
                 filter_geom_clause = (
                     f'ST_INTERSECTS("{geom_column}", '

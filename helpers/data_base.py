@@ -357,7 +357,9 @@ def get_srid_from_table_geo_column(
         query=query_srid,
         context_information=context_information,
     )
-    return cur.fetchone()[0]
+    srid = cur.fetchone()[0]
+    cur.close()
+    return srid
 
 
 def get_type_from_table_geo_column(
@@ -391,6 +393,7 @@ def get_type_from_table_geo_column(
     for geo_type_tuple in geo_type_list:
         geo_type: str = geo_type_tuple[0]
         cleaned_geo_type_list.append(geo_type.strip('"').upper())
+    cur.close()
     return cleaned_geo_type_list
 
 
@@ -429,4 +432,37 @@ def get_geo_column_type(
         context_information=context_information,
     )
     result_row = cur.fetchone()
+    cur.close()
     return result_row[0] if result_row else None
+
+
+def check_table_exceeds_size(
+    context_information: dict,
+    limit_size: int = 50000,
+) -> bool:
+    """
+    Checks if the number of rows in a specified table exceeds a given size limit.
+
+    Args:
+        context_information (dict): A dictionary containing the context information
+            required to connect to the database. It should include the keys
+            "table_name" and "connection_name".
+        limit_size (int, optional): The size limit to check against. Defaults to 50000.
+
+    Returns:
+        bool: True if the number of rows in the table exceeds the limit size, False otherwise.
+    """
+    connection_manager: SFConnectionManager = SFConnectionManager.get_instance()
+    query = f'SELECT count(*) FROM "{context_information["table_name"]}"'
+    cur = connection_manager.execute_query(
+        connection_name=context_information["connection_name"],
+        query=query,
+        context_information=context_information,
+    )
+
+    count_tuple = cur.fetchone()
+    cur.close()
+
+    if count_tuple[0] > limit_size:
+        return True
+    return False

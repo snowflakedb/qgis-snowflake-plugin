@@ -4,7 +4,7 @@ from qgis.PyQt import QtWidgets
 from qgis.PyQt.QtWidgets import QMessageBox
 
 
-def get_ok_cancel_message_box(title: str, text: str) -> int:
+def get_proceed_cancel_message_box(title: str, text: str) -> int:
     message_box = QtWidgets.QMessageBox()
 
     message_box.setWindowTitle(title)

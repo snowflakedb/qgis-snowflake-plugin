@@ -1,7 +1,8 @@
-from ..helpers.layer_creation import check_table_exceeds_size
-from ..helpers.messages import get_ok_cancel_message_box
+from ..helpers.data_base import check_table_exceeds_size
+from ..helpers.messages import get_proceed_cancel_message_box
 from ..helpers.utils import (
     add_task_to_running_queue,
+    get_auth_information,
     get_authentification_information,
     get_connection_child_groups,
     get_qsettings,
@@ -51,6 +52,7 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
         self.set_headers_model()
         self.update_cmb_connections()
         self.deactivate_temp()
+        self._running_tasks = {}
 
     def deactivate_temp(self) -> None:
         """
@@ -87,23 +89,22 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
             column = model.data(qmi_column)
 
             selected_connection = self.cmbConnections.currentText()
-            auth_information = get_authentification_information(
-                self.settings, selected_connection
-            )
-            table_information = {
-                "database": auth_information["database"],
-                "schema": schema,
-                "table": table,
+            auth_information = get_auth_information(selected_connection)
+
+            context_information = {
+                "connection_name": selected_connection,
+                "database_name": auth_information["database"],
+                "schema_name": schema,
+                "table_name": table,
+                "geo_column": column,
             }
 
             table_exceeds_size = check_table_exceeds_size(
-                auth_information=auth_information,
-                table_information=table_information,
-                connection_name=selected_connection,
+                context_information=context_information,
             )
 
             if table_exceeds_size:
-                response = get_ok_cancel_message_box(
+                response = get_proceed_cancel_message_box(
                     "SFConvertColumnToLayerTask Dataset is too large",
                     (
                         "The dataset is too large. Please consider using "
@@ -115,32 +116,28 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
                 if response == QMessageBox.Cancel:
                     return False
 
-            information_dict = {
-                "schema": schema,
-                "table": table,
-                "column": column,
-                "comment": comment,
-            }
-
             path = f"/Snowflake/{selected_connection}/{schema}/{table}"
 
             if (
                 selected_connection is not None
                 and selected_connection != ""
-                and not task_is_running(path)
+                and path not in self._running_tasks
             ):
                 snowflake_covert_column_to_layer_task = SFConvertColumnToLayerTask(
-                    connection_name=selected_connection,
-                    information_dict=information_dict,
+                    context_information=context_information,
                     path=path,
                 )
+                self._running_tasks[path] = True
                 snowflake_covert_column_to_layer_task.on_handle_error.connect(
                     on_handle_error
+                )
+                snowflake_covert_column_to_layer_task.on_handle_warning.connect(
+                    slot=self.on_handle_finished
                 )
                 QgsApplication.taskManager().addTask(
                     snowflake_covert_column_to_layer_task
                 )
-                add_task_to_running_queue(task_name=path, status="processing")
+
             return True
 
         except Exception as e:
@@ -150,6 +147,18 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
                 f"Double-clicked on table failed.\n\nExtended error information:\n{str(e)}",
             )
             return False
+
+    def on_handle_finished(self, path: str) -> None:
+        """
+        Handles a warning by removing the specified path from the running tasks.
+
+        Args:
+            path (str): The path associated with the warning to be handled.
+
+        Returns:
+            None
+        """
+        del self._running_tasks[path]
 
     def update_cmb_connections(self) -> None:
         """
