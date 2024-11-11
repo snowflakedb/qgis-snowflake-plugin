@@ -56,12 +56,14 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
                     if self.mSqlErrorText.text().endswith(";")
                     else self.mSqlErrorText.text()
                 )
+                geo_column_name = self.mGeometryColumnComboBox.currentText()
+                self.context_information["geo_column_name"] = geo_column_name
                 sf_convert_sql_query_to_layer_task = SFConvertSQLQueryToLayerTask(
-                    context_information=self.context_information,
                     query=query_without_semicolon,
-                    geo_column_name=self.mGeometryColumnComboBox.currentText(),
                     layer_name=self.mLayerNameLineEdit.text(),
+                    context_information=self.context_information,
                 )
+
                 sf_convert_sql_query_to_layer_task.on_handle_error.connect(
                     self.on_handle_error
                 )

@@ -17,9 +17,6 @@ from qgis.core import (
     QgsGeometry,
 )
 
-
-# plugin
-# from ..providers.sf_provider import SFProvider
 from ..providers.sf_feature_source import SFFeatureSource
 
 
@@ -29,12 +26,8 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
         source: SFFeatureSource,
         request: QgsFeatureRequest,
     ):
-        """Constructor"""
         super().__init__(request)
-        # import is crashing
         self._provider = source.get_provider()
-        # self._settings = PlgOptionsManager.get_plg_settings()
-        # self.log = PlgLogger().log
 
         self._request = request if request is not None else QgsFeatureRequest()
         self._transform = QgsCoordinateTransform()
@@ -60,29 +53,25 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
 
         geom_column = self._provider.get_geometry_column()
 
-        # Check if some attributes which contain date or time
-        # In that case, they need to be converted to a Qt type
-        # to be correctly handled by QGIS.
+        # Mapping between the field type and the conversion function
         attributes_conversion_functions: dict[QMetaType, Callable[[Any], Any]] = {
             QMetaType.QDate: QDate,
             QMetaType.QTime: QTime,
             QMetaType.QDateTime: QDateTime,
         }
-        # By default, do not convert
+
         self._attributes_converters = {}
         for idx in range(len(self._provider.fields())):
             self._attributes_converters[idx] = lambda x: x
 
-        # Check if some fields need to be converted
-        # If that's the case, enable the _attributes_need_conversion flag
-        # and assign the converter with the attributes index.
+        # Check if field needs to be converted
         self._attributes_need_conversion = False
         for field_type, converter in attributes_conversion_functions.items():
             for index in self._provider.get_field_index_by_type(field_type):
                 self._attributes_need_conversion = True
                 self._attributes_converters[index] = converter
 
-        # Create the list of fields that need to be retrieved
+        # Fields list that needs to be retrieved
         self._request_sub_attributes = (
             self._request.flags() & QgsFeatureRequest.Flag.SubsetOfAttributes
         )
@@ -126,41 +115,38 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
         where_clause_list = []
         if feature_id_list:
             if self._provider.primary_key() == -1:
-                feature_clause = f"index in {tuple(feature_id_list)}"
+                feature_clause = f"sfindexsfrownumberauto in {tuple(feature_id_list)}"
             else:
                 primary_key_name = list_field_names[self._provider.primary_key()]
                 feature_clause = f"{primary_key_name} in {tuple(feature_id_list)}"
 
             where_clause_list.append(feature_clause)
 
+        self._expression = ""
         # Apply the filter expression
         if self._request.filterType() == QgsFeatureRequest.FilterExpression:
-            # A provider is supposed to implement a QgsSqlExpressionCompiler
-            # in order to handle expression. However, this class is not
-            # available in the Python bindings.
-            # Try to use the expression as is. It should work in most
-            # cases for simple expression.
             expression = self._request.filterExpression().expression()
             if expression:
                 try:
-                    self._provider.con().sql(
+                    # Checks if the expression is valid
+                    query_verify_expression = (
                         f"SELECT count(*)"
                         f" FROM {self._provider._from_clause}"
                         f" WHERE {expression}"
                         " LIMIT 0"
                     )
+                    cur_verify_expression = (
+                        self._provider.connection_manager.execute_query(
+                            connection_name=self._provider._connection_name,
+                            query=query_verify_expression,
+                            context_information=self._provider._context_information,
+                        )
+                    )
+                    cur_verify_expression.close()
                     self._expression = expression
                     where_clause_list.append(expression)
                 except Exception:
-                    # PlgLogger.log(
-                    #     f"Duckdb provider does not handle expression: {expression}",
-                    #     log_level=2,
-                    #     duration=5,
-                    #     push=False,
-                    # )
-                    self._expression = ""
-            else:
-                self._expression = ""
+                    pass
 
         # Apply the subset string filter
         if self._provider.subsetString():
@@ -199,16 +185,9 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
             geom_query = ""
 
         if self._provider.primary_key() == -1:
-            # if self._provider._table_name and self._provider.is_view():
-            #     index_word = "ROW_NUMBER() OVER (order by 1) as index "
-            # else:
-            #     index_word = "rowid"
-            # index = f"{index_word}+1 as index "
-            index = "ROW_NUMBER() OVER (order by 1) as index "
-            # order_by = "index"
+            index = "ROW_NUMBER() OVER (order by 1) as sfindexsfrownumberauto "
         else:
             index = self._provider._fields[self._provider.primary_key()].name()
-            # order_by = index
 
         filter_geo_type = f"ST_ASGEOJSON(\"{geom_column}\"):type ILIKE '{self._provider._geometry_type}'"
 
@@ -221,25 +200,10 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
             # f"order by {order_by}"
         )
 
-        # if self._settings.debug_mode:
-        #     self.log(
-        #         message="feature iterator execute query: {}".format(final_query),
-        #         log_level=4,  # 4 = info
-        #         push=False,
-        #     )
-
-        print(final_query)
-
-        context_information = {
-            "connection_name": self._provider._connection_name,
-            "schema_name": self._provider._schema_name,
-            "table_name": self._provider._table_name,
-        }
-
         self._result = self._provider.connection_manager.execute_query(
             connection_name=self._provider._connection_name,
             query=final_query,
-            context_information=context_information,
+            context_information=self._provider._context_information,
         )
         self._index = 0
 
@@ -270,7 +234,6 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
 
         # set attributes
         if self._attributes_need_conversion:
-            # Some attributes need to be converted
             if self._request_sub_attributes:
                 for idx, attr_idx in enumerate(self._request.subsetOfAttributes()):
                     attribute = self._attributes_converters[idx](next_result[idx])
@@ -280,7 +243,6 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                     converted_attribute = self._attributes_converters[idx](attribute)
                     f.setAttribute(idx, converted_attribute)
         else:
-            # No need for conversion, the values can directly be used
             if self._request_sub_attributes:
                 for idx, attr_idx in enumerate(self._request.subsetOfAttributes()):
                     f.setAttribute(attr_idx, next_result[idx])
@@ -311,7 +273,6 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
 
     def rewind(self) -> bool:
         """reset the iterator to the starting position"""
-        # virtual bool rewind() = 0;
         if self._index < 0:
             return False
         self._index = 0
@@ -319,6 +280,5 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
 
     def close(self) -> bool:
         """end of iterating: free the resources / lock"""
-        # virtual bool close() = 0;
         self._index = -1
         return True

@@ -466,3 +466,96 @@ def check_table_exceeds_size(
     if count_tuple[0] > limit_size:
         return True
     return False
+
+
+def get_cursor_description_from_sql(
+    query: str,
+    context_information: typing.Dict[str, typing.Union[str, None]] = None,
+) -> list[snowflake.connector.cursor.ResultMetadata]:
+    """
+    Executes a SQL query and retrieves the cursor description.
+
+    Args:
+        query (str): The SQL query to be executed.
+        context_information (Dict[str, Union[str, None]], optional): A dictionary containing context information
+            such as connection name. Defaults to None.
+
+    Returns:
+        list[snowflake.connector.cursor.ResultMetadata]: A list of metadata describing the columns of the result set.
+    """
+    connection_manager: SFConnectionManager = SFConnectionManager.get_instance()
+    cur = connection_manager.execute_query(
+        connection_name=context_information["connection_name"],
+        query=query,
+        context_information=context_information,
+    )
+    cur_description = cur.description
+    cur.close()
+    return cur_description
+
+
+def get_srid_from_sql_query_geo_column(
+    query: str,
+    context_information: dict,
+) -> int:
+    connection_manager: SFConnectionManager = SFConnectionManager.get_instance()
+    query_srid = (
+        f'SELECT ANY_VALUE(ST_SRID("{context_information["geo_column_name"]}")) '
+        f'FROM ({query}) WHERE "{context_information["geo_column_name"]}" IS NOT NULL'
+    )
+    cur = connection_manager.execute_query(
+        connection_name=context_information["connection_name"],
+        query=query_srid,
+        context_information=context_information,
+    )
+    srid = cur.fetchone()[0]
+    cur.close()
+    return srid
+
+
+def get_type_from_query_geo_column(
+    query: str,
+    context_information: dict,
+) -> list:
+    connection_manager: SFConnectionManager = SFConnectionManager.get_instance()
+    query_geo_type = (
+        f'SELECT DISTINCT ST_ASGEOJSON("{context_information["geo_column_name"]}"):type '
+        f'FROM ({query}) WHERE "{context_information["geo_column_name"]}" IS NOT NULL'
+    )
+    cur = connection_manager.execute_query(
+        connection_name=context_information["connection_name"],
+        query=query_geo_type,
+        context_information=context_information,
+    )
+    geo_type_list = cur.fetchall()
+    cleaned_geo_type_list = []
+    for geo_type_tuple in geo_type_list:
+        geo_type: str = geo_type_tuple[0]
+        cleaned_geo_type_list.append(geo_type.strip('"').upper())
+    cur.close()
+    return cleaned_geo_type_list
+
+
+def get_geo_column_type_from_query(
+    query: str,
+    context_information: dict,
+) -> typing.Union[str, None]:
+    connection_manager: SFConnectionManager = SFConnectionManager.get_instance()
+    cur = connection_manager.execute_query(
+        connection_name=context_information["connection_name"],
+        query=query,
+        context_information=context_information,
+    )
+
+    for col in cur.description:
+        col_name = col[0]
+        col_type = col[1]
+        if col_name == context_information["geo_column_name"]:
+            if col_type == 14:
+                return "GEOGRAPHY"
+            elif col_type == 15:
+                return "GEOMETRY"
+            return None
+    cur.close()
+
+    return None

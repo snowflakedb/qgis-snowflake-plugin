@@ -1,14 +1,12 @@
 from ..helpers.data_base import check_table_exceeds_size
 from ..helpers.messages import get_proceed_cancel_message_box
 from ..helpers.utils import (
-    add_task_to_running_queue,
     get_auth_information,
     get_authentification_information,
     get_connection_child_groups,
     get_qsettings,
     on_handle_error,
     remove_connection,
-    task_is_running,
 )
 from ..tasks.sf_connect_task import SFConnectTask
 from ..tasks.sf_convert_column_to_layer_task import (

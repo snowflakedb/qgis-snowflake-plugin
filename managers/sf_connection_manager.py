@@ -169,7 +169,10 @@ class SFConnectionManager:
         try:
             cursor = self.create_cursor(connection_name)
             if context_information is not None:
-                if "schema_name" in context_information:
+                if (
+                    "schema_name" in context_information
+                    and context_information["schema_name"] is not None
+                ):
                     cursor.execute(f'USE SCHEMA "{context_information["schema_name"]}"')
             cursor.execute(query)
             return cursor

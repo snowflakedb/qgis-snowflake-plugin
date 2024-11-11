@@ -1,12 +1,10 @@
 import typing
-from ..helpers.data_base import get_cursor_description
-from ..helpers.utils import get_qsettings, get_authentification_information
-from ..helpers.layer_creation import get_layers, get_srid_from_table
-from qgis.core import (
-    QgsMapLayer,
-    QgsProject,
-    QgsTask,
+from ..helpers.data_base import (
+    get_geo_column_type_from_query,
+    get_srid_from_sql_query_geo_column,
+    get_type_from_query_geo_column,
 )
+from qgis.core import QgsProject, QgsTask, QgsVectorLayer
 from qgis.PyQt.QtCore import pyqtSignal
 
 
@@ -16,25 +14,25 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
     def __init__(
         self,
         query: str,
-        geo_column_name: str,
         layer_name: str,
         context_information: typing.Dict[str, typing.Union[str, None]] = None,
     ):
         try:
+            self.context_information = context_information
+            self.connection_name = context_information["connection_name"]
+            self.schema = (
+                context_information["schema_name"]
+                if "schema_name" in context_information
+                else ""
+            )
+            self.geo_column_name = context_information["geo_column_name"]
+
             self.query = query
-            self.geo_column_name = geo_column_name
             self.layer_name = layer_name
             super().__init__(
                 f"Snowflake convert query to layer: {self.query}",
                 QgsTask.CanCancel,
             )
-            self.settings = get_qsettings()
-            self.auth_information = get_authentification_information(
-                self.settings, context_information["connection_name"]
-            )
-            self.database_name = self.auth_information["database"]
-            self.connection_name = context_information["connection_name"]
-            self.context_information = context_information
         except Exception as e:
             self.on_handle_error.emit(
                 "SFConvertColumnToLayerTask init failed",
@@ -49,47 +47,37 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
             bool: True if the task is executed successfully, False otherwise.
         """
         try:
-            cur_description = get_cursor_description(
-                auth_information=self.auth_information,
+            srid = get_srid_from_sql_query_geo_column(
                 query=self.query,
-                connection_name=self.connection_name,
                 context_information=self.context_information,
             )
-
-            column_names = ""
-            for desc in cur_description:
-                if column_names != "":
-                    column_names += ", "
-                desc_col_name = desc.name
-                if desc_col_name == self.geo_column_name:
-                    column_names += f'ST_ASWKB("{self.geo_column_name}") AS "{self.geo_column_name}"'
-                else:
-                    column_names += f'"{desc_col_name}"'
-
-            query = f"select {column_names} from ({self.query})"
-
-            srid = get_srid_from_table(
-                auth_information=self.auth_information,
-                table_information={
-                    "database": self.database_name,
-                    "schema": self.context_information["schema_name"],
-                    "table": self.context_information["table_name"],
-                },
-                connection_name=self.connection_name,
-                column_name=self.geo_column_name,
+            geo_type_list = get_type_from_query_geo_column(
+                query=self.query,
                 context_information=self.context_information,
             )
-
-            error_cancel_status, self.layers = get_layers(
-                auth_information=self.auth_information,
-                layer_pre_name=self.layer_name,
-                query=query,
-                connection_name=self.connection_name,
-                geo_column_name=self.geo_column_name,
-                task=self,
-                srid=srid,
+            geo_column_type = get_geo_column_type_from_query(
+                query=self.query,
+                context_information=self.context_information,
             )
-            return error_cancel_status
+            for geo_type in geo_type_list:
+                uri = (
+                    f"connection_name={self.connection_name} "
+                    f"sql_query={self.query} "
+                    f"schema_name={self.schema} "
+                    f"srid={srid} "
+                    f"geom_column={self.geo_column_name} "
+                    f"geometry_type={geo_type} "
+                    f"geo_column_type={geo_column_type}"
+                )
+
+                layer_name = (
+                    self.layer_name
+                    if len(geo_type_list) == 1
+                    else f"{self.layer_name}_{geo_type}"
+                )
+                layer = QgsVectorLayer(uri, layer_name, "snowflakedb")
+            QgsProject.instance().addMapLayer(layer)
+            return True
         except Exception as e:
             self.on_handle_error.emit(
                 "SFConvertColumnToLayerTask run failed",
@@ -107,8 +95,4 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
         Returns:
             None
         """
-        if result:
-            for layer in self.layers:
-                if isinstance(layer, QgsMapLayer):
-                    QgsProject.instance().addMapLayer(layer)
-                    QgsProject.instance().layerTreeRoot()
+        pass

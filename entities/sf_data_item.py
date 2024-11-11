@@ -541,9 +541,12 @@ ORDER BY {column_name}"""
         path_splitted = self.path().split("/")
         context_information = {
             "connection_name": path_splitted[2] if len(path_splitted) > 2 else None,
-            "schema_name": path_splitted[3] if len(path_splitted) > 3 else None,
-            "table_name": path_splitted[4] if len(path_splitted) > 4 else None,
         }
+
+        if len(path_splitted) > 3:
+            context_information["schema_name"] = path_splitted[3]
+        if len(path_splitted) > 4:
+            context_information["table_name"] = path_splitted[4]
 
         sf_sql_query_dialog = SFSQLQueryDialog(
             context_information=context_information,

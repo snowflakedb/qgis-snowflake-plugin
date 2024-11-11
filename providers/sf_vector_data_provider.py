@@ -67,9 +67,11 @@ class SFVectorDataProvider(QgsVectorDataProvider):
         self._settings = get_qsettings()
         self._context_information = {
             "connection_name": self._connection_name,
-            "schema_name": self._schema_name,
-            "table_name": self._table_name,
         }
+        if self._schema_name:
+            self._context_information["schema_name"] = self._schema_name
+        if "table_name" in self._context_information:
+            self._context_information["table_name"] = self._table_name
         self._auth_information = get_authentification_information(
             self._settings, self._context_information["connection_name"]
         )
