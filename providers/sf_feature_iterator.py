@@ -114,11 +114,12 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
 
         where_clause_list = []
         if feature_id_list:
+            list_feature_id_string = ", ".join(str(x) for x in feature_id_list)
             if self._provider.primary_key() == -1:
-                feature_clause = f"sfindexsfrownumberauto in {tuple(feature_id_list)}"
+                feature_clause = f"sfindexsfrownumberauto in ({list_feature_id_string})"
             else:
                 primary_key_name = list_field_names[self._provider.primary_key()]
-                feature_clause = f"{primary_key_name} in {tuple(feature_id_list)}"
+                feature_clause = f"{primary_key_name} in ({list_feature_id_string})"
 
             where_clause_list.append(feature_clause)
 
@@ -197,7 +198,7 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
             f"{geom_query} {index} "
             f"from {self._provider._from_clause} where {filter_geo_type} {filter_geom_clause}) "
             f"{where_clause} "
-            # f"order by {order_by}"
+            "ORDER BY RANDOM() LIMIT 10000"
         )
 
         self._result = self._provider.connection_manager.execute_query(
