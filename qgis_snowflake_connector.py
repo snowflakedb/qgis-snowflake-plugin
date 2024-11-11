@@ -51,7 +51,9 @@ import os
 import sys
 import inspect
 
-from qgis.core import QgsProcessingAlgorithm, QgsApplication
+from qgis.core import QgsProcessingAlgorithm, QgsApplication, QgsProviderRegistry
+
+from .providers.sf_metadata_provider import SFMetadataProvider
 
 from .qgis_snowflake_connector_algorithm import QGISSnowflakeConnectorAlgorithm
 
@@ -97,6 +99,10 @@ class QGISSnowflakeConnectorPlugin(object):
 
         self.provider = QGISSnowflakeConnectorProvider()
         QgsApplication.processingRegistry().addProvider(self.provider)
+
+        registry = QgsProviderRegistry.instance()
+        sf_metadata_provider = SFMetadataProvider()
+        registry.registerProvider(sf_metadata_provider)
 
     def initGui(self):
         self.initProcessing()

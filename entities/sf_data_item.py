@@ -1,25 +1,29 @@
 from ..managers.sf_connection_manager import SFConnectionManager
 from ..helpers.data_base import (
+    check_table_exceeds_size,
     get_column_iterator,
     get_features_iterator,
     get_table_column_iterator,
 )
-from ..helpers.messages import get_ok_cancel_message_box
-from ..helpers.layer_creation import check_table_exceeds_size
+from ..helpers.messages import get_proceed_cancel_message_box
 from ..helpers.utils import (
-    add_task_to_running_queue,
+    get_auth_information,
     get_authentification_information,
     get_connection_child_groups,
     get_qsettings,
     on_handle_error,
     on_handle_warning,
     remove_connection,
-    task_is_running,
 )
 from ..tasks.sf_convert_column_to_layer_task import SFConvertColumnToLayerTask
 from ..ui.sf_connection_string_dialog import SFConnectionStringDialog
 from PyQt5.QtCore import pyqtSignal
-from qgis.core import QgsDataItem, Qgis, QgsApplication, QgsErrorItem
+from qgis.core import (
+    QgsDataItem,
+    Qgis,
+    QgsApplication,
+    QgsErrorItem,
+)
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QMessageBox, QAction, QWidget
 import typing
@@ -62,6 +66,7 @@ class SFDataItem(QgsDataItem):
         self.message_handler.connect(self.on_message_handler)
         self.clean_name = clean_name
         self.geom_column = geom_column
+        self._running_tasks = {}
 
     def createChildren(self) -> typing.List["QgsDataItem"]:
         """
@@ -388,31 +393,32 @@ ORDER BY {column_name}"""
             bool: True if the double click event is handled successfully, False otherwise.
         """
         try:
-            if self.item_type == "table" and not task_is_running(self.path()):
-                schema_data_item = self.parent()
-                auth_information = get_authentification_information(
-                    self.settings, self.connection_name
-                )
-                information_dict = {
-                    "schema": schema_data_item.clean_name,
-                    "table": self.clean_name,
-                    "column": self.geom_column,
-                    "database": auth_information["database"],
+            schema_data_item = self.parent()
+            if (
+                self.item_type == "table"
+                and self.path() not in schema_data_item._running_tasks
+            ):
+                schema_data_item._running_tasks[self.path()] = True
+                auth_information = get_auth_information(self.connection_name)
+                context_information = {
+                    "connection_name": self.connection_name,
+                    "database_name": auth_information["database"],
+                    "schema_name": schema_data_item.clean_name,
+                    "table_name": self.clean_name,
+                    "geo_column": self.geom_column,
                 }
 
                 table_exceeds_size = check_table_exceeds_size(
-                    auth_information=auth_information,
-                    table_information=information_dict,
-                    connection_name=self.connection_name,
+                    context_information=context_information,
                 )
 
                 if table_exceeds_size:
-                    response = get_ok_cancel_message_box(
+                    response = get_proceed_cancel_message_box(
                         "SFConvertColumnToLayerTask Dataset is too large",
                         (
                             "The dataset is too large. Please consider using "
                             '"Execute SQL" to limit the result set. If you click '
-                            '"Proceed," only a random sample of 50000 rows '
+                            '"Proceed," only a random sample of 10 thousand rows '
                             "will be loaded."
                         ),
                     )
@@ -420,8 +426,7 @@ ORDER BY {column_name}"""
                         return False
 
                 snowflake_covert_column_to_layer_task = SFConvertColumnToLayerTask(
-                    connection_name=self.connection_name,
-                    information_dict=information_dict,
+                    context_information=context_information,
                     path=self.path(),
                 )
                 snowflake_covert_column_to_layer_task.on_handle_error.connect(
@@ -430,14 +435,29 @@ ORDER BY {column_name}"""
                 snowflake_covert_column_to_layer_task.on_handle_warning.connect(
                     slot=on_handle_warning
                 )
+                snowflake_covert_column_to_layer_task.on_hadle_finished.connect(
+                    slot=self.on_handle_finished
+                )
                 QgsApplication.taskManager().addTask(
                     task=snowflake_covert_column_to_layer_task
                 )
-                add_task_to_running_queue(task_name=self.path(), status="processing")
-
             return True
-        except Exception as _:
+        except Exception as e:
+            print(str(e))
             return False
+
+    def on_handle_finished(self, path: str) -> None:
+        """
+        Handles the completion of the task.
+
+        Parameters:
+        - path (str): The path of the task.
+
+        Returns:
+        - None
+        """
+        schema_data_item = self.parent()
+        del schema_data_item._running_tasks[path]
 
     def actions(self, parent: QWidget) -> typing.List[QAction]:
         """
@@ -521,9 +541,12 @@ ORDER BY {column_name}"""
         path_splitted = self.path().split("/")
         context_information = {
             "connection_name": path_splitted[2] if len(path_splitted) > 2 else None,
-            "schema_name": path_splitted[3] if len(path_splitted) > 3 else None,
-            "table_name": path_splitted[4] if len(path_splitted) > 4 else None,
         }
+
+        if len(path_splitted) > 3:
+            context_information["schema_name"] = path_splitted[3]
+        if len(path_splitted) > 4:
+            context_information["table_name"] = path_splitted[4]
 
         sf_sql_query_dialog = SFSQLQueryDialog(
             context_information=context_information,

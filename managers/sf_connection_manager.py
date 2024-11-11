@@ -60,6 +60,9 @@ class SFConnectionManager:
                 "application": "OSGeo_QGIS",
                 "login_timeout": 5,
                 "client_session_keep_alive": True,
+                "session_parameters": {
+                    "QUERY_TAG": "qgis-snowflake-connector",
+                },
             }
 
             if "long_timeout" in connection_params:
@@ -166,8 +169,11 @@ class SFConnectionManager:
         try:
             cursor = self.create_cursor(connection_name)
             if context_information is not None:
-                if "schema_name" in context_information:
-                    cursor.execute(f"USE SCHEMA {context_information['schema_name']}")
+                if (
+                    "schema_name" in context_information
+                    and context_information["schema_name"] is not None
+                ):
+                    cursor.execute(f'USE SCHEMA "{context_information["schema_name"]}"')
             cursor.execute(query)
             return cursor
         except Exception as e:

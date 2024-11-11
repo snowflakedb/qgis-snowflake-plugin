@@ -289,12 +289,14 @@ class QGISSnowflakeConnectorAlgorithm(QgsProcessingAlgorithm):
                         elif field.type() == QVariant.String:
                             feat_val = feat_val.replace("'", "\\'")
                             query_values += f"'{feat_val}'"
-                        elif field.type() in [
-                            QVariant.Date,
-                            QVariant.DateTime,
-                            QVariant.Time,
-                        ]:
-                            query_values += f"'{feat_val}'"
+                        elif field.type() == QVariant.Date:
+                            query_values += f"'{feat_val.toString('yyyy-MM-dd')}'"
+                        elif field.type() == QVariant.Time:
+                            query_values += f"'{feat_val.toString('hh:mm:ss')}'"
+                        elif field.type() == QVariant.DateTime:
+                            query_values += (
+                                f"'{feat_val.toString('yyyy-MM-dd hh:mm:ss')}'"
+                            )
                         else:
                             query_values += f"{feat_val}"
             query_values += ")"
