@@ -67,6 +67,7 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
                     context_information=context_information_with_sql_query,
                 )
 
+                task_should_run = True
                 if table_exceeds_size:
                     response = get_proceed_cancel_message_box(
                         title="Resultset is too large",
@@ -76,26 +77,26 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
                             'If you click "Proceed" your query will execute as is.'
                         ),
                     )
-                    if response != QMessageBox.Cancel:
-                        geo_column_name = self.mGeometryColumnComboBox.currentText()
-                        self.context_information["geo_column_name"] = geo_column_name
-                        sf_convert_sql_query_to_layer_task = (
-                            SFConvertSQLQueryToLayerTask(
-                                query=query_without_semicolon,
-                                layer_name=self.mLayerNameLineEdit.text(),
-                                context_information=self.context_information,
-                            )
-                        )
+                    task_should_run = response != QMessageBox.Cancel
+                if task_should_run:
+                    geo_column_name = self.mGeometryColumnComboBox.currentText()
+                    self.context_information["geo_column_name"] = geo_column_name
+                    sf_convert_sql_query_to_layer_task = SFConvertSQLQueryToLayerTask(
+                        query=query_without_semicolon,
+                        layer_name=self.mLayerNameLineEdit.text(),
+                        context_information=self.context_information,
+                    )
 
-                        sf_convert_sql_query_to_layer_task.on_handle_error.connect(
-                            self.on_handle_error
-                        )
-                        sf_convert_sql_query_to_layer_task.on_success.connect(
-                            self.on_success
-                        )
-                        QgsApplication.taskManager().addTask(
-                            sf_convert_sql_query_to_layer_task
-                        )
+                    sf_convert_sql_query_to_layer_task.on_handle_error.connect(
+                        self.on_handle_error
+                    )
+                    sf_convert_sql_query_to_layer_task.on_success.connect(
+                        self.on_success
+                    )
+                    QgsApplication.taskManager().addTask(
+                        sf_convert_sql_query_to_layer_task
+                    )
+
         except Exception as e:
             QMessageBox.information(
                 None,
@@ -140,114 +141,139 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
 
     def on_data_ready(
         self,
-        result_meta_data_list: typing.List[ResultMetadata],
-        features: typing.List[QgsFeature],
+        #     result_meta_data_list: typing.List[ResultMetadata],
+        #     features: typing.List[QgsFeature],
+        result: tuple,
     ) -> None:
         try:
             self.model = QStandardItemModel()
             self.mQueryResultsTableView.setModel(self.model)
             self.mGeometryColumnComboBox.clear()
             col_names = []
-            for result_meta_data in result_meta_data_list:
+            col_types = []
+
+            for result_meta_data in result[0]:
                 col_name = result_meta_data[0]
+                col_type = result_meta_data[1]
                 col_names.append(col_name)
-                self.mGeometryColumnComboBox.addItem(col_name)
+                col_types.append(col_type)
+                if col_type in [14, 15]:
+                    self.mGeometryColumnComboBox.addItem(col_name)
             self.model.setHorizontalHeaderLabels(col_names)
-            for feat in features:
-                row_items = []
-                is_null = False
-                for index, attr in enumerate(feat.attributes()):
-                    if isinstance(attr, QVariant):
-                        if attr.isNull():
-                            is_null = True
-                            continue
-                    if attr is None:
-                        is_null = True
-                        continue
 
-                    if result_meta_data_list[index].type_code in [14, 15]:
-                        # Parse the JSON string
-                        geojson = json.loads(attr)
-                        if "type" in geojson or "coordinates" in geojson:
-                            # Extract the geometry type and coordinates
-                            geom_type = geojson["type"]
-                            coordinates = geojson["coordinates"]
-
-                            # Create QgsGeometry based on the geometry type
-                            if geom_type == "Point":
-                                point = QgsPointXY(coordinates[0], coordinates[1])
-                                geom = QgsGeometry.fromPointXY(point)
-                            elif geom_type == "LineString":
-                                line = [QgsPointXY(xy[0], xy[1]) for xy in coordinates]
-                                geom = QgsGeometry.fromPolylineXY(line)
-                            elif geom_type == "Polygon":
-                                outer_ring = [
-                                    QgsPointXY(xy[0], xy[1]) for xy in coordinates[0]
-                                ]
-                                geom = QgsGeometry.fromPolygonXY([outer_ring])
-                            elif geom_type == "MultiPoint":
-                                points = [
-                                    QgsPointXY(xy[0], xy[1]) for xy in coordinates
-                                ]
-                                geom = QgsGeometry.fromMultiPointXY(points)
-                            elif geom_type == "MultiLineString":
-                                lines = [
-                                    [QgsPointXY(xy[0], xy[1]) for xy in line]
-                                    for line in coordinates
-                                ]
-                                geom = QgsGeometry.fromMultiPolylineXY(lines)
-                            elif geom_type == "MultiPolygon":
-                                polygons = []
-                                for ring in coordinates:
-                                    for xy in ring[0]:
-                                        polygons.append([QgsPointXY(xy[0], xy[1])])
-                                geom = QgsGeometry.fromMultiPolygonXY([polygons])
-                            elif geom_type == "GeometryCollection":
-                                geometries = []
-                                for geom_data in coordinates:
-                                    geom_type = geom_data["type"]
-                                    geom_coords = geom_data["coordinates"]
-                                    if geom_type == "Point":
-                                        point = QgsPointXY(
-                                            geom_coords[0], geom_coords[1]
-                                        )
-                                        geometries.append(
-                                            QgsGeometry.fromPointXY(point)
-                                        )
-                                    elif geom_type == "LineString":
-                                        line = [
-                                            QgsPointXY(xy[0], xy[1])
-                                            for xy in geom_coords
-                                        ]
-                                        geometries.append(
-                                            QgsGeometry.fromPolylineXY(line)
-                                        )
-                                    elif geom_type == "Polygon":
-                                        outer_ring = [
-                                            QgsPointXY(xy[0], xy[1])
-                                            for xy in geom_coords[0]
-                                        ]
-                                        geometries.append(
-                                            QgsGeometry.fromPolygonXY(outer_ring)
-                                        )
-                                geom = QgsGeometry.collect(geometries)
-                            else:
-                                geom = None
-
-                            # Convert geometry to WKB
-                            if geom is None:
-                                q_standard_item = QStandardItem("")
-                            else:
-                                wkb = geom.asWkt()
-                                q_standard_item = QStandardItem(wkb)
-                        else:
-                            q_standard_item = QStandardItem("")
+            for idx, row in enumerate(result[1]):
+                items = []
+                for col_value in row:
+                    if col_value is None:
+                        items.append(QStandardItem(None))
                     else:
-                        q_standard_item = QStandardItem(str(attr))
+                        items.append(QStandardItem(str(col_value)))
+                self.model.appendRow(items)
 
-                    row_items.append(q_standard_item)
-                if not is_null:
-                    self.model.appendRow(row_items)
+            # self.model = QStandardItemModel()
+            # self.mQueryResultsTableView.setModel(self.model)
+            # self.mGeometryColumnComboBox.clear()
+            # col_names = []
+            # for result_meta_data in result_meta_data_list:
+            #     col_name = result_meta_data[0]
+            #     col_names.append(col_name)
+            #     self.mGeometryColumnComboBox.addItem(col_name)
+            # self.model.setHorizontalHeaderLabels(col_names)
+            # for feat in features:
+            #     row_items = []
+            #     is_null = False
+            #     for index, attr in enumerate(feat.attributes()):
+            #         if isinstance(attr, QVariant):
+            #             if attr.isNull():
+            #                 is_null = True
+            #                 continue
+            #         if attr is None:
+            #             is_null = True
+            #             continue
+
+            #         if result_meta_data_list[index].type_code in [14, 15]:
+            #             # Parse the JSON string
+            #             geojson = json.loads(attr)
+            #             if "type" in geojson or "coordinates" in geojson:
+            #                 # Extract the geometry type and coordinates
+            #                 geom_type = geojson["type"]
+            #                 coordinates = geojson["coordinates"]
+
+            #                 # Create QgsGeometry based on the geometry type
+            #                 if geom_type == "Point":
+            #                     point = QgsPointXY(coordinates[0], coordinates[1])
+            #                     geom = QgsGeometry.fromPointXY(point)
+            #                 elif geom_type == "LineString":
+            #                     line = [QgsPointXY(xy[0], xy[1]) for xy in coordinates]
+            #                     geom = QgsGeometry.fromPolylineXY(line)
+            #                 elif geom_type == "Polygon":
+            #                     outer_ring = [
+            #                         QgsPointXY(xy[0], xy[1]) for xy in coordinates[0]
+            #                     ]
+            #                     geom = QgsGeometry.fromPolygonXY([outer_ring])
+            #                 elif geom_type == "MultiPoint":
+            #                     points = [
+            #                         QgsPointXY(xy[0], xy[1]) for xy in coordinates
+            #                     ]
+            #                     geom = QgsGeometry.fromMultiPointXY(points)
+            #                 elif geom_type == "MultiLineString":
+            #                     lines = [
+            #                         [QgsPointXY(xy[0], xy[1]) for xy in line]
+            #                         for line in coordinates
+            #                     ]
+            #                     geom = QgsGeometry.fromMultiPolylineXY(lines)
+            #                 elif geom_type == "MultiPolygon":
+            #                     polygons = []
+            #                     for ring in coordinates:
+            #                         for xy in ring[0]:
+            #                             polygons.append([QgsPointXY(xy[0], xy[1])])
+            #                     geom = QgsGeometry.fromMultiPolygonXY([polygons])
+            #                 elif geom_type == "GeometryCollection":
+            #                     geometries = []
+            #                     for geom_data in coordinates:
+            #                         geom_type = geom_data["type"]
+            #                         geom_coords = geom_data["coordinates"]
+            #                         if geom_type == "Point":
+            #                             point = QgsPointXY(
+            #                                 geom_coords[0], geom_coords[1]
+            #                             )
+            #                             geometries.append(
+            #                                 QgsGeometry.fromPointXY(point)
+            #                             )
+            #                         elif geom_type == "LineString":
+            #                             line = [
+            #                                 QgsPointXY(xy[0], xy[1])
+            #                                 for xy in geom_coords
+            #                             ]
+            #                             geometries.append(
+            #                                 QgsGeometry.fromPolylineXY(line)
+            #                             )
+            #                         elif geom_type == "Polygon":
+            #                             outer_ring = [
+            #                                 QgsPointXY(xy[0], xy[1])
+            #                                 for xy in geom_coords[0]
+            #                             ]
+            #                             geometries.append(
+            #                                 QgsGeometry.fromPolygonXY(outer_ring)
+            #                             )
+            #                     geom = QgsGeometry.collect(geometries)
+            #                 else:
+            #                     geom = None
+
+            #                 # Convert geometry to WKB
+            #                 if geom is None:
+            #                     q_standard_item = QStandardItem("")
+            #                 else:
+            #                     wkb = geom.asWkt()
+            #                     q_standard_item = QStandardItem(wkb)
+            #             else:
+            #                 q_standard_item = QStandardItem("")
+            #         else:
+            #             q_standard_item = QStandardItem(str(attr))
+
+            #         row_items.append(q_standard_item)
+            #     if not is_null:
+            #         self.model.appendRow(row_items)
 
         except Exception as e:
             stack_trace = traceback.format_exc()
