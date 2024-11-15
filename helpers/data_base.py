@@ -604,3 +604,41 @@ def checks_sql_query_exceeds_size(
         context_information=context_information,
         limit_size=limit_size,
     )
+
+
+def get_limit_sql_query(
+    query: str,
+    context_information: dict,
+    limit: int = 50000,
+) -> typing.Tuple[typing.List[snowflake.connector.cursor.ResultMetadata], list]:
+    connection_manager: SFConnectionManager = SFConnectionManager.get_instance()
+    cur_desc = connection_manager.execute_query(
+        connection_name=context_information["connection_name"],
+        query=query,
+        context_information=context_information,
+    )
+    cur_description = cur_desc.description
+    cur_desc.close()
+
+    query_columns = ""
+    for desc in cur_description:
+        col_name = desc[0]
+        col_type = desc[1]
+        if query_columns != "":
+            query_columns += ", "
+        if col_type in (14, 15):
+            query_columns += f"ST_ASWKT({col_name}) AS {col_name}"
+        else:
+            query_columns += f"{col_name}"
+
+    query = f"SELECT {query_columns} FROM ({query}) LIMIT {limit}"
+    cur = connection_manager.execute_query(
+        connection_name=context_information["connection_name"],
+        query=query,
+        context_information=context_information,
+    )
+
+    resultset = cur.fetchall()
+    cur.close()
+
+    return cur_description, resultset

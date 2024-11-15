@@ -1,32 +1,37 @@
 import typing
 
-from ..helpers.data_base import get_features_iterator
-from ..helpers.utils import get_qsettings, get_authentification_information
+from ..helpers.data_base import get_limit_sql_query
 from qgis.core import QgsTask
 from qgis.PyQt.QtCore import pyqtSignal
 
 
 class SFExecuteSQLQueryTask(QgsTask):
     on_handle_error = pyqtSignal(str, str)
-    on_data_ready = pyqtSignal(list, list)
+    on_data_ready = pyqtSignal(tuple)
 
     def __init__(
         self,
         query: str,
         limit: typing.Union[int, None] = None,
         context_information: typing.Dict[str, typing.Union[str, None]] = None,
-    ):
+    ) -> None:
+        """
+        Initializes the SFExecuteSQLQueryTask.
+
+        Args:
+            query (str): The SQL query to be executed.
+            limit (typing.Union[int, None], optional): The maximum number of records to return. Defaults to None.
+            context_information (typing.Dict[str, typing.Union[str, None]], optional): Additional context information for the query. Defaults to None.
+
+        Raises:
+            Exception: If initialization fails, an error message is emitted.
+        """
         try:
             self.query = query
             super().__init__(
                 f"Snowflake Execute Query: {self.query}",
                 QgsTask.CanCancel,
             )
-            self.settings = get_qsettings()
-            self.auth_information = get_authentification_information(
-                self.settings, context_information["connection_name"]
-            )
-            self.database_name = self.auth_information["database"]
             self.context_information = context_information
             self.limit = limit
         except Exception as e:
@@ -37,29 +42,20 @@ class SFExecuteSQLQueryTask(QgsTask):
 
     def run(self) -> bool:
         """
-        Executes the task to convert a Snowflake column to a layer.
+        Executes the SQL query with a limit and handles any errors that occur.
 
         Returns:
-            bool: True if the task is executed successfully, False otherwise.
+            bool: True if the query execution is successful, False otherwise.
+
+        Raises:
+            Emits an error signal with detailed error information if an exception occurs.
         """
         try:
-            feature_iterator = get_features_iterator(
-                auth_information=self.auth_information,
-                query=self.query,
-                connection_name=self.context_information["connection_name"],
+            self._result = get_limit_sql_query(
+                query=self.query[:-1] if self.query.endswith(";") else self.query,
                 context_information=self.context_information,
+                limit=self.limit,
             )
-            self.columns_descriptions = feature_iterator.cursor.description
-
-            self.features = []
-            for index, feat in enumerate(feature_iterator):
-                if self.limit is not None and index >= self.limit:
-                    break
-                if self.isCanceled():
-                    return False
-                self.features.append(feat)
-
-            feature_iterator.close()
 
             return True
         except Exception as e:
@@ -71,16 +67,13 @@ class SFExecuteSQLQueryTask(QgsTask):
 
     def finished(self, result: bool) -> None:
         """
-        Callback function called when the task is finished.
+        Slot that is called when the task is finished.
 
         Args:
-            result (bool): The result of the task.
+            result (bool): The result of the task execution. If True, the task was successful.
 
-        Returns:
-            None
+        Emits:
+            on_data_ready: Signal emitted with the result data if the task was successful.
         """
         if result:
-            self.on_data_ready.emit(
-                self.columns_descriptions,
-                self.features,
-            )
+            self.on_data_ready.emit(self._result)
