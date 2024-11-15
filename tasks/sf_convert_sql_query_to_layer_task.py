@@ -77,7 +77,7 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
                     else f"{self.layer_name}_{geo_type}"
                 )
                 layer = QgsVectorLayer(uri, layer_name, "snowflakedb")
-            QgsProject.instance().addMapLayer(layer)
+                QgsProject.instance().addMapLayer(layer)
             return True
         except Exception as e:
             self.on_handle_error.emit(
