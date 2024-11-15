@@ -263,6 +263,7 @@ def check_install_snowflake_connector_package() -> None:
         else:
             prefixPath = sys.exec_prefix
             python3_path = os.path.join(prefixPath, "bin", "python3")
+        subprocess.call([python3_path, "-m", "pip", "install", "pip", "—upgrade"])
         subprocess.call(
             [
                 python3_path,

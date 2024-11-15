@@ -26,6 +26,7 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
         source: SFFeatureSource,
         request: QgsFeatureRequest,
     ):
+        self._cursor_batch_rows = []
         super().__init__(request)
         self._provider = source.get_provider()
 
@@ -51,161 +52,169 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
         if not self._provider.isValid():
             return
 
-        geom_column = self._provider.get_geometry_column()
+        if not self._provider._features_loaded:
+            geom_column = self._provider.get_geometry_column()
 
-        # Mapping between the field type and the conversion function
-        attributes_conversion_functions: dict[QMetaType, Callable[[Any], Any]] = {
-            QMetaType.QDate: QDate,
-            QMetaType.QTime: QTime,
-            QMetaType.QDateTime: QDateTime,
-        }
+            # Mapping between the field type and the conversion function
+            attributes_conversion_functions: dict[QMetaType, Callable[[Any], Any]] = {
+                QMetaType.QDate: QDate,
+                QMetaType.QTime: QTime,
+                QMetaType.QDateTime: QDateTime,
+                QMetaType.Double: float,
+            }
 
-        self._attributes_converters = {}
-        for idx in range(len(self._provider.fields())):
-            self._attributes_converters[idx] = lambda x: x
+            self._attributes_converters = {}
+            for idx in range(len(self._provider.fields())):
+                self._attributes_converters[idx] = lambda x: x
 
-        # Check if field needs to be converted
-        self._attributes_need_conversion = False
-        for field_type, converter in attributes_conversion_functions.items():
-            for index in self._provider.get_field_index_by_type(field_type):
-                self._attributes_need_conversion = True
-                self._attributes_converters[index] = converter
+            # Check if field needs to be converted
+            self._attributes_need_conversion = False
+            for field_type, converter in attributes_conversion_functions.items():
+                for index in self._provider.get_field_index_by_type(field_type):
+                    self._attributes_need_conversion = True
+                    self._attributes_converters[index] = converter
 
-        # Fields list that needs to be retrieved
-        self._request_sub_attributes = (
-            self._request.flags() & QgsFeatureRequest.Flag.SubsetOfAttributes
-        )
-        if self._request_sub_attributes and not self._provider.subsetString():
-            idx_required = [idx for idx in self._request.subsetOfAttributes()]
-
-            # The primary key column must be added if it is not present in the field list.
+            # Fields list that needs to be retrieved
+            self._request_sub_attributes = (
+                self._request.flags() & QgsFeatureRequest.Flag.SubsetOfAttributes
+            )
             if (
-                self._provider.primary_key() != -1
-                and self._provider.primary_key() not in idx_required
+                self._request_sub_attributes
+                and not self._provider.subsetString()
+                and len(self._request.subsetOfAttributes()) > 0
             ):
-                idx_required.append(self._provider.primary_key())
+                idx_required = [idx for idx in self._request.subsetOfAttributes()]
 
-            list_field_names = [
-                self._provider.fields()[idx].name() for idx in idx_required
-            ]
-        else:
-            list_field_names = [field.name() for field in self._provider.fields()]
+                # The primary key column must be added if it is not present in the field list.
+                if (
+                    self._provider.primary_key() != -1
+                    and self._provider.primary_key() not in idx_required
+                ):
+                    idx_required.append(self._provider.primary_key())
 
-        if len(list_field_names) > 0:
-            fields_name_for_query = '"' + '", "'.join(list_field_names) + '"'
-        else:
-            fields_name_for_query = ""
+                list_field_names = [
+                    self._provider.fields()[idx].name() for idx in idx_required
+                ]
+            else:
+                list_field_names = [field.name() for field in self._provider.fields()]
 
-        if fields_name_for_query:
-            fields_name_for_query += ","
-        self.index_geom_column = len(list_field_names)
+            if len(list_field_names) > 0:
+                fields_name_for_query = '"' + '", "'.join(list_field_names) + '"'
+            else:
+                fields_name_for_query = ""
 
-        # Create fid/fids list
-        feature_id_list = None
-        if (
-            self._request.filterType() == QgsFeatureRequest.FilterFid
-            or self._request.filterType() == QgsFeatureRequest.FilterFids
-        ):
-            feature_id_list = (
-                [self._request.filterFid()]
-                if self._request.filterType() == QgsFeatureRequest.FilterFid
-                else self._request.filterFids()
+            if fields_name_for_query:
+                fields_name_for_query += ","
+            self.index_geom_column = len(list_field_names)
+
+            # Create fid/fids list
+            feature_id_list = None
+            if (
+                self._request.filterType() == QgsFeatureRequest.FilterFid
+                or self._request.filterType() == QgsFeatureRequest.FilterFids
+            ):
+                feature_id_list = (
+                    [self._request.filterFid()]
+                    if self._request.filterType() == QgsFeatureRequest.FilterFid
+                    else self._request.filterFids()
+                )
+
+            where_clause_list = []
+            if feature_id_list:
+                list_feature_id_string = ", ".join(str(x) for x in feature_id_list)
+                if self._provider.primary_key() == -1:
+                    feature_clause = (
+                        f"sfindexsfrownumberauto in ({list_feature_id_string})"
+                    )
+                else:
+                    primary_key_name = list_field_names[self._provider.primary_key()]
+                    feature_clause = f"{primary_key_name} in ({list_feature_id_string})"
+
+                where_clause_list.append(feature_clause)
+
+            self._expression = ""
+            # Apply the filter expression
+            if self._request.filterType() == QgsFeatureRequest.FilterExpression:
+                expression = self._request.filterExpression().expression()
+                if expression:
+                    try:
+                        # Checks if the expression is valid
+                        query_verify_expression = (
+                            f"SELECT count(*)"
+                            f" FROM {self._provider._from_clause}"
+                            f" WHERE {expression}"
+                            " LIMIT 0"
+                        )
+                        cur_verify_expression = (
+                            self._provider.connection_manager.execute_query(
+                                connection_name=self._provider._connection_name,
+                                query=query_verify_expression,
+                                context_information=self._provider._context_information,
+                            )
+                        )
+                        cur_verify_expression.close()
+                        self._expression = expression
+                        where_clause_list.append(expression)
+                    except Exception:
+                        pass
+
+            # Apply the subset string filter
+            if self._provider.subsetString():
+                subset_clause = self._provider.subsetString().replace('"', "")
+                where_clause_list.append(subset_clause)
+
+            # Apply the geometry filter
+            filter_geom_clause = ""
+            if not filter_rect.isNull():
+                if self._provider._geometry_type == "GEOMETRY":
+                    filter_geom_clause = (
+                        f'ST_INTERSECTS("{geom_column}", '
+                        f"ST_GEOMETRYFROMWKT('{filter_rect.asWktPolygon()}'))"
+                    )
+                if self._provider._geometry_type == "GEOGRAPHY":
+                    filter_geom_clause = (
+                        f'ST_INTERSECTS("{geom_column}", '
+                        f"ST_GEOGRAPHYFROMWKT('{filter_rect.asWktPolygon()}'))"
+                    )
+                if filter_geom_clause != "":
+                    filter_geom_clause = f"and {filter_geom_clause}"
+
+            # build the complete where clause
+            where_clause = ""
+            if where_clause_list:
+                where_clause = f"where {where_clause_list[0]}"
+                if len(where_clause_list) > 1:
+                    for clause in where_clause_list[1:]:
+                        where_clause += f" and {clause}"
+
+            geom_query = f'ST_ASWKB("{geom_column}"), "{geom_column}", '
+            self._request_no_geometry = (
+                self._request.flags() & QgsFeatureRequest.Flag.NoGeometry
+            )
+            if self._request_no_geometry:
+                geom_query = ""
+
+            if self._provider.primary_key() == -1:
+                index = "ROW_NUMBER() OVER (order by 1) as sfindexsfrownumberauto "
+            else:
+                index = self._provider._fields[self._provider.primary_key()].name()
+
+            filter_geo_type = f"ST_ASGEOJSON(\"{geom_column}\"):type ILIKE '{self._provider._geometry_type}'"
+
+            self.final_query = (
+                "select * from ("
+                f"select {fields_name_for_query} "
+                f"{geom_query} {index} "
+                f"from {self._provider._from_clause} where {filter_geo_type} {filter_geom_clause}) "
+                f"{where_clause} "
+                "ORDER BY RANDOM() LIMIT 50000"
             )
 
-        where_clause_list = []
-        if feature_id_list:
-            list_feature_id_string = ", ".join(str(x) for x in feature_id_list)
-            if self._provider.primary_key() == -1:
-                feature_clause = f"sfindexsfrownumberauto in ({list_feature_id_string})"
-            else:
-                primary_key_name = list_field_names[self._provider.primary_key()]
-                feature_clause = f"{primary_key_name} in ({list_feature_id_string})"
-
-            where_clause_list.append(feature_clause)
-
-        self._expression = ""
-        # Apply the filter expression
-        if self._request.filterType() == QgsFeatureRequest.FilterExpression:
-            expression = self._request.filterExpression().expression()
-            if expression:
-                try:
-                    # Checks if the expression is valid
-                    query_verify_expression = (
-                        f"SELECT count(*)"
-                        f" FROM {self._provider._from_clause}"
-                        f" WHERE {expression}"
-                        " LIMIT 0"
-                    )
-                    cur_verify_expression = (
-                        self._provider.connection_manager.execute_query(
-                            connection_name=self._provider._connection_name,
-                            query=query_verify_expression,
-                            context_information=self._provider._context_information,
-                        )
-                    )
-                    cur_verify_expression.close()
-                    self._expression = expression
-                    where_clause_list.append(expression)
-                except Exception:
-                    pass
-
-        # Apply the subset string filter
-        if self._provider.subsetString():
-            subset_clause = self._provider.subsetString().replace('"', "")
-            where_clause_list.append(subset_clause)
-
-        # Apply the geometry filter
-        filter_geom_clause = ""
-        if not filter_rect.isNull():
-            if self._provider._geometry_type == "GEOMETRY":
-                filter_geom_clause = (
-                    f'ST_INTERSECTS("{geom_column}", '
-                    f"ST_GEOMETRYFROMWKT('{filter_rect.asWktPolygon()}'))"
-                )
-            if self._provider._geometry_type == "GEOGRAPHY":
-                filter_geom_clause = (
-                    f'ST_INTERSECTS("{geom_column}", '
-                    f"ST_GEOGRAPHYFROMWKT('{filter_rect.asWktPolygon()}'))"
-                )
-            if filter_geom_clause != "":
-                filter_geom_clause = f"and {filter_geom_clause}"
-
-        # build the complete where clause
-        where_clause = ""
-        if where_clause_list:
-            where_clause = f"where {where_clause_list[0]}"
-            if len(where_clause_list) > 1:
-                for clause in where_clause_list[1:]:
-                    where_clause += f" and {clause}"
-
-        geom_query = f'ST_ASWKB("{geom_column}"), "{geom_column}", '
-        self._request_no_geometry = (
-            self._request.flags() & QgsFeatureRequest.Flag.NoGeometry
-        )
-        if self._request_no_geometry:
-            geom_query = ""
-
-        if self._provider.primary_key() == -1:
-            index = "ROW_NUMBER() OVER (order by 1) as sfindexsfrownumberauto "
-        else:
-            index = self._provider._fields[self._provider.primary_key()].name()
-
-        filter_geo_type = f"ST_ASGEOJSON(\"{geom_column}\"):type ILIKE '{self._provider._geometry_type}'"
-
-        final_query = (
-            "select * from ("
-            f"select {fields_name_for_query} "
-            f"{geom_query} {index} "
-            f"from {self._provider._from_clause} where {filter_geo_type} {filter_geom_clause}) "
-            f"{where_clause} "
-            "ORDER BY RANDOM() LIMIT 10000"
-        )
-
-        self._result = self._provider.connection_manager.execute_query(
-            connection_name=self._provider._connection_name,
-            query=final_query,
-            context_information=self._provider._context_information,
-        )
+            self._result = self._provider.connection_manager.execute_query(
+                connection_name=self._provider._connection_name,
+                query=self.final_query,
+                context_information=self._provider._context_information,
+            )
         self._index = 0
 
     def fetchFeature(self, f: QgsFeature) -> bool:
@@ -216,41 +225,112 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
         :return: True if success
         :rtype: bool
         """
-        next_result = self._result.fetchone()
+        try:
+            if self._provider._features_loaded:
+                if (
+                    self._index < 0
+                    or self._index >= len(self._provider._features)
+                    or not self._provider.isValid()
+                ):
+                    f.setValid(False)
+                    return False
 
-        if not next_result or not self._provider.isValid():
-            f.setValid(False)
-            return False
+                if (
+                    self._request.filterType() == QgsFeatureRequest.FilterFid
+                    # or self._request.filterType() == QgsFeatureRequest.FilterFids
+                ):
+                    _indx = self._request.filterFid()
+                else:
+                    _indx = self._index
+                local_feature: QgsFeature = self._provider._features[_indx]
 
-        f.setFields(self._provider.fields())
-        f.setValid(True)
+                f.setFields(self._provider.fields())
+                f.setGeometry(local_feature.geometry())
+                f.setId(local_feature.id())
+                f.setAttributes(local_feature.attributes())
+                f.setValid(True)
 
-        if not self._request_no_geometry:
-            geometry = QgsGeometry()
-            geometry.fromWkb(next_result[self.index_geom_column])
-            f.setGeometry(geometry)
-            self.geometryToDestinationCrs(f, self._transform)
-
-        f.setId(next_result[-1])
-
-        # set attributes
-        if self._attributes_need_conversion:
-            if self._request_sub_attributes:
-                for idx, attr_idx in enumerate(self._request.subsetOfAttributes()):
-                    attribute = self._attributes_converters[idx](next_result[idx])
-                    f.setAttribute(attr_idx, attribute)
             else:
-                for idx, attribute in enumerate(next_result[: self.index_geom_column]):
-                    converted_attribute = self._attributes_converters[idx](attribute)
-                    f.setAttribute(idx, converted_attribute)
-        else:
-            if self._request_sub_attributes:
-                for idx, attr_idx in enumerate(self._request.subsetOfAttributes()):
-                    f.setAttribute(attr_idx, next_result[idx])
-            else:
-                f.setAttributes(list(next_result[: self.index_geom_column]))
+                if not self._cursor_batch_rows:
+                    self._cursor_batch_rows = self._result.fetchmany(5000)
 
-        self._index += 1
+                next_result = (
+                    self._cursor_batch_rows.pop(0) if self._cursor_batch_rows else None
+                )
+
+                if not next_result or not self._provider.isValid():
+                    f.setValid(False)
+                    self._provider._features_loaded = True
+                    return False
+
+                f.setFields(self._provider.fields())
+
+                if not self._request_no_geometry:
+                    geometry = QgsGeometry()
+                    geometry.fromWkb(next_result[self.index_geom_column])
+                    f.setGeometry(geometry)
+                    self.geometryToDestinationCrs(f, self._transform)
+
+                f.setId(self._index)
+
+                # # set attributes
+                desc_result = self._result.description
+                desc_result = list(
+                    map(lambda desc: desc.name, self._result.description)
+                )
+                if self._attributes_need_conversion:
+                    if (
+                        self._request_sub_attributes
+                        and len(self._request.subsetOfAttributes()) > 0
+                    ):
+                        for idx, attr_idx in enumerate(
+                            self._request.subsetOfAttributes()
+                        ):
+                            attribute = self._attributes_converters[idx](
+                                next_result[idx]
+                            )
+                            f.setAttribute(attr_idx, attribute)
+                    else:
+                        try:
+                            for indx, field_name in enumerate(
+                                self._provider.fields().names()
+                            ):
+                                if field_name == self._provider._column_geom:
+                                    continue
+                                column_value = next_result[
+                                    desc_result.index(field_name)
+                                ]
+                                converted_attribute = self._attributes_converters[indx](
+                                    column_value
+                                )
+                                f.setAttribute(indx, converted_attribute)
+                        except Exception as e:
+                            print(f"this is an error: {str(e)}")
+
+                else:
+                    if (
+                        self._request_sub_attributes
+                        and len(self._request.subsetOfAttributes()) > 0
+                    ):
+                        for idx, attr_idx in enumerate(
+                            self._request.subsetOfAttributes()
+                        ):
+                            f.setAttribute(attr_idx, next_result[idx])
+                    else:
+                        for indx, field_name in enumerate(
+                            self._provider.fields().names()
+                        ):
+                            if field_name == self._provider._column_geom:
+                                continue
+                            f.setAttribute(
+                                indx, next_result[desc_result.index(field_name)]
+                            )
+                f.setValid(True)
+                self._provider._features.append(QgsFeature(f))
+
+            self._index += 1
+        except Exception as e:
+            print(f"Error fetching feature: {str(e)}")
         return True
 
     def nextFeatureFilterExpression(self, f: QgsFeature) -> bool:
@@ -266,16 +346,30 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
 
     def __next__(self) -> QgsFeature:
         """Returns the next value till current is lower than high"""
-        f = QgsFeature()
-        if not self.nextFeature(f):
-            raise StopIteration
-        else:
+        if self._provider._features_loaded:
+            if self._index < 0 or self._index > len(self._provider._features):
+                f = QgsFeature()
+                f.setValid(False)
+                return f
+            f = self._provider._features[self._index]
+            self._index += 1
             return f
+        else:
+            f = QgsFeature()
+            if not self.nextFeature(f):
+                raise StopIteration
+            else:
+                return f
 
     def rewind(self) -> bool:
         """reset the iterator to the starting position"""
-        if self._index < 0:
-            return False
+        self._result = self._provider.connection_manager.execute_query(
+            connection_name=self._provider._connection_name,
+            query=self.final_query,
+            context_information=self._provider._context_information,
+        )
+        self._provider._features = []
+        self._provider._features_loaded = False
         self._index = 0
         return True
 

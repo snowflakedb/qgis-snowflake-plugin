@@ -418,7 +418,7 @@ ORDER BY {column_name}"""
                         (
                             "The dataset is too large. Please consider using "
                             '"Execute SQL" to limit the result set. If you click '
-                            '"Proceed," only a random sample of 10 thousand rows '
+                            '"Proceed," only a random sample of 50 thousand rows '
                             "will be loaded."
                         ),
                     )

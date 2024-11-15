@@ -12,8 +12,6 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import QMetaType
 
-from .sf_feature_iterator import SFFeatureIterator
-
 from .sf_feature_source import SFFeatureSource
 
 from ..helpers.utils import get_authentification_information, get_qsettings
@@ -34,6 +32,8 @@ class SFVectorDataProvider(QgsVectorDataProvider):
         flags=QgsDataProvider.ReadFlags(),
     ):
         super().__init__(uri)
+        self._features = []
+        self._features_loaded = False
         self._is_valid = False
         self._uri = uri
         self._wkb_type = None
@@ -75,29 +75,10 @@ class SFVectorDataProvider(QgsVectorDataProvider):
         self._auth_information = get_authentification_information(
             self._settings, self._context_information["connection_name"]
         )
-        # print("auth")
-        # print(self._auth_information)
 
         self.connect_database()
 
         if self._sql_query and not self._table_name:
-            # if not self.test_sql_query():
-            #     return
-
-            # If the rowid pseudocolumn is not in the sql add it to
-            # the clause. It will be used to build the feature ids if
-            # the table does not have a primary key.
-            # cur = self.connection_manager.execute_query(
-            #     connection_name=self._connection_name,
-            #     query=self._sql_query,
-            #     context_information=self._context_information,
-            # )
-            # columns = cur.description
-            # if "rowid" not in columns:
-            #     self._sql = re.sub(
-            #         "select", "select rowid, ", self._sql, flags=re.IGNORECASE
-            #     )
-
             self._from_clause = f"({self._sql_query})"
         else:
             self._from_clause = f'"{self._table_name}"'
@@ -107,7 +88,6 @@ class SFVectorDataProvider(QgsVectorDataProvider):
         self._provider_options = providerOptions
         self._flags = flags
         self._is_valid = True
-        # weakref.finalize(self, self.disconnect_database)
 
     @classmethod
     def providerKey(cls) -> str:
@@ -136,8 +116,9 @@ class SFVectorDataProvider(QgsVectorDataProvider):
                 self._feature_count = 0
             else:
                 query = f"SELECT COUNT(*) FROM {self._from_clause}"
+                query += f" WHERE ST_ASGEOJSON(\"{self._column_geom}\"):type ILIKE '{self._geometry_type}'"
                 if self.subsetString():
-                    query += f" WHERE {self.subsetString()}"
+                    query += f" AND {self.subsetString()}"
 
                 cur = self.connection_manager.execute_query(
                     connection_name=self._connection_name,
@@ -193,8 +174,6 @@ class SFVectorDataProvider(QgsVectorDataProvider):
 
     def extent(self) -> QgsRectangle:
         """Calculates the extent of the bend and returns a QgsRectangle"""
-        # TODO : Replace by ST_Extent when the function is implemented
-
         if not self._extent:
             if not self._is_valid or not self._column_geom:
                 self._extent = QgsRectangle()
@@ -248,6 +227,7 @@ class SFVectorDataProvider(QgsVectorDataProvider):
                         "SELECT column_name, data_type FROM information_schema.columns "
                         f"WHERE table_name ILIKE '{self._table_name}' "
                         "AND data_type NOT IN ('GEOMETRY', 'GEOGRAPHY')"
+                        " ORDER BY column_name, data_type"
                     )
 
                     cur = self.connection_manager.execute_query(
@@ -349,10 +329,6 @@ class SFVectorDataProvider(QgsVectorDataProvider):
         cur.close()
 
         return results
-
-    def getFeatures(self, request=QgsFeatureRequest()) -> QgsFeature:
-        """Return next feature"""
-        return QgsFeatureIterator(SFFeatureIterator(SFFeatureSource(self), request))
 
     def subsetString(self) -> str:
         return self.filter_where_clause
