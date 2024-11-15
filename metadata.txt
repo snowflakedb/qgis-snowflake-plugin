@@ -30,7 +30,7 @@ homepage=https://docs.snowflake.com/en/sql-reference/functions-geospatial/
 category=Analysis
 icon=icon.png
 # experimental flag
-experimental=True
+experimental=False
 
 # deprecated flag (applies to the whole plugin, not just a single version)
 deprecated=False
