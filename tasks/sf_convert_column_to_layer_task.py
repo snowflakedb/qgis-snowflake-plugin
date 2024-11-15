@@ -52,8 +52,6 @@ class SFConvertColumnToLayerTask(QgsTask):
         Returns:
             bool: True if the task is executed successfully, False otherwise.
         """
-        # ORDER BY RANDOM()
-        # LIMIT 50000
         try:
             srid = get_srid_from_table_geo_column(
                 geo_column_name=self.column,

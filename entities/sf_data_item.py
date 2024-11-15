@@ -398,7 +398,6 @@ ORDER BY {column_name}"""
                 self.item_type == "table"
                 and self.path() not in schema_data_item._running_tasks
             ):
-                schema_data_item._running_tasks[self.path()] = True
                 auth_information = get_auth_information(self.connection_name)
                 context_information = {
                     "connection_name": self.connection_name,
@@ -425,6 +424,7 @@ ORDER BY {column_name}"""
                     if response == QMessageBox.Cancel:
                         return False
 
+                schema_data_item._running_tasks[self.path()] = True
                 snowflake_covert_column_to_layer_task = SFConvertColumnToLayerTask(
                     context_information=context_information,
                     path=self.path(),
