@@ -201,13 +201,16 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
 
             filter_geo_type = f"ST_ASGEOJSON(\"{geom_column}\"):type ILIKE '{self._provider._geometry_type}'"
 
+            order_limit_clause = ""
+            if self._provider._is_limited_unordered:
+                order_limit_clause = " ORDER BY RANDOM() LIMIT 50000"
+
             self.final_query = (
                 "select * from ("
                 f"select {fields_name_for_query} "
                 f"{geom_query} {index} "
                 f"from {self._provider._from_clause} where {filter_geo_type} {filter_geom_clause}) "
-                f"{where_clause} "
-                "ORDER BY RANDOM() LIMIT 50000"
+                f"{where_clause}{order_limit_clause}"
             )
 
             self._result = self._provider.connection_manager.execute_query(

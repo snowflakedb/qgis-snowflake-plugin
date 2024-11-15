@@ -1,9 +1,6 @@
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsDataProvider,
-    QgsFeature,
-    QgsFeatureIterator,
-    QgsFeatureRequest,
     QgsField,
     QgsFields,
     QgsRectangle,
@@ -11,6 +8,8 @@ from qgis.core import (
     QgsWkbTypes,
 )
 from qgis.PyQt.QtCore import QMetaType
+
+from ..helpers.data_base import check_from_clause_exceeds_size
 
 from .sf_feature_source import SFFeatureSource
 
@@ -56,7 +55,7 @@ class SFVectorDataProvider(QgsVectorDataProvider):
                 self._geo_column_type,
             ) = parse_uri(uri)
 
-        except Exception as exc:
+        except Exception as _:
             self._is_valid = False
             return
 
@@ -78,11 +77,16 @@ class SFVectorDataProvider(QgsVectorDataProvider):
         )
 
         self.connect_database()
+        self._is_limited_unordered = False
 
         if self._sql_query and not self._table_name:
             self._from_clause = f"({self._sql_query})"
         else:
             self._from_clause = f'"{self._table_name}"'
+            self._is_limited_unordered = check_from_clause_exceeds_size(
+                from_clause=self._from_clause,
+                context_information=self._context_information,
+            )
 
         self.get_geometry_column()
 
@@ -359,7 +363,7 @@ class SFVectorDataProvider(QgsVectorDataProvider):
                     context_information=self._context_information,
                 )
                 cur.close()
-            except Exception as e:
+            except Exception as _:
                 return False
             self.filter_where_clause = subsetstring
 

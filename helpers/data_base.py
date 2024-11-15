@@ -452,20 +452,12 @@ def check_table_exceeds_size(
     Returns:
         bool: True if the number of rows in the table exceeds the limit size, False otherwise.
     """
-    connection_manager: SFConnectionManager = SFConnectionManager.get_instance()
-    query = f'SELECT count(*) FROM "{context_information["table_name"]}"'
-    cur = connection_manager.execute_query(
-        connection_name=context_information["connection_name"],
-        query=query,
+
+    return check_from_clause_exceeds_size(
+        from_clause=f'"{context_information["table_name"]}"',
         context_information=context_information,
+        limit_size=limit_size,
     )
-
-    count_tuple = cur.fetchone()
-    cur.close()
-
-    if count_tuple[0] > limit_size:
-        return True
-    return False
 
 
 def get_cursor_description_from_sql(
@@ -559,3 +551,56 @@ def get_geo_column_type_from_query(
     cur.close()
 
     return None
+
+
+def check_from_clause_exceeds_size(
+    from_clause: str,
+    context_information: dict,
+    limit_size: int = 50000,
+) -> bool:
+    """
+    Checks if the number of rows in the specified FROM clause exceeds the given limit size.
+
+    Args:
+        from_clause (str): The FROM clause to be checked.
+        context_information (dict): A dictionary containing context information, including the connection and schema name.
+        limit_size (int, optional): The maximum allowed number of rows. Defaults to 50000.
+
+    Returns:
+        bool: True if the number of rows exceeds the limit size, False otherwise.
+    """
+    connection_manager: SFConnectionManager = SFConnectionManager.get_instance()
+    query = f"SELECT count(*) FROM {from_clause}"
+    cur = connection_manager.execute_query(
+        connection_name=context_information["connection_name"],
+        query=query,
+        context_information=context_information,
+    )
+
+    count_tuple = cur.fetchone()
+    cur.close()
+
+    if count_tuple[0] > limit_size:
+        return True
+    return False
+
+
+def checks_sql_query_exceeds_size(
+    context_information: dict,
+    limit_size: int = 50000,
+) -> bool:
+    """
+    Checks if the SQL query exceeds the specified size limit.
+
+    Args:
+        context_information (dict): A dictionary containing context information, including the SQL query.
+        limit_size (int, optional): The size limit to check against. Defaults to 50000.
+
+    Returns:
+        bool: True if the SQL query exceeds the specified size limit, False otherwise.
+    """
+    return check_from_clause_exceeds_size(
+        from_clause=f"({context_information['sql_query']})",
+        context_information=context_information,
+        limit_size=limit_size,
+    )

@@ -9,6 +9,9 @@ from qgis.core import QgsApplication, QgsFeature, QgsGeometry, QgsPointXY
 import os
 import typing
 
+from ..helpers.data_base import checks_sql_query_exceeds_size
+from ..helpers.messages import get_proceed_cancel_message_box
+
 from ..tasks.sf_convert_sql_query_to_layer_task import SFConvertSQLQueryToLayerTask
 
 from ..tasks.sf_execute_sql_query_task import SFExecuteSQLQueryTask
@@ -56,19 +59,43 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
                     if self.mSqlErrorText.text().endswith(";")
                     else self.mSqlErrorText.text()
                 )
-                geo_column_name = self.mGeometryColumnComboBox.currentText()
-                self.context_information["geo_column_name"] = geo_column_name
-                sf_convert_sql_query_to_layer_task = SFConvertSQLQueryToLayerTask(
-                    query=query_without_semicolon,
-                    layer_name=self.mLayerNameLineEdit.text(),
-                    context_information=self.context_information,
+                context_information_with_sql_query = self.context_information.copy()
+                context_information_with_sql_query["sql_query"] = (
+                    query_without_semicolon
+                )
+                table_exceeds_size = checks_sql_query_exceeds_size(
+                    context_information=context_information_with_sql_query,
                 )
 
-                sf_convert_sql_query_to_layer_task.on_handle_error.connect(
-                    self.on_handle_error
-                )
-                sf_convert_sql_query_to_layer_task.on_success.connect(self.on_success)
-                QgsApplication.taskManager().addTask(sf_convert_sql_query_to_layer_task)
+                if table_exceeds_size:
+                    response = get_proceed_cancel_message_box(
+                        title="Resultset is too large",
+                        text=(
+                            "You are trying to load more than 50 thousand rows. We "
+                            'recommend you to apply a limit clause (e.g. "LIMIT 50000") to your query. '
+                            'If you click "Proceed" your query will execute as is.'
+                        ),
+                    )
+                    if response != QMessageBox.Cancel:
+                        geo_column_name = self.mGeometryColumnComboBox.currentText()
+                        self.context_information["geo_column_name"] = geo_column_name
+                        sf_convert_sql_query_to_layer_task = (
+                            SFConvertSQLQueryToLayerTask(
+                                query=query_without_semicolon,
+                                layer_name=self.mLayerNameLineEdit.text(),
+                                context_information=self.context_information,
+                            )
+                        )
+
+                        sf_convert_sql_query_to_layer_task.on_handle_error.connect(
+                            self.on_handle_error
+                        )
+                        sf_convert_sql_query_to_layer_task.on_success.connect(
+                            self.on_success
+                        )
+                        QgsApplication.taskManager().addTask(
+                            sf_convert_sql_query_to_layer_task
+                        )
         except Exception as e:
             QMessageBox.information(
                 None,
