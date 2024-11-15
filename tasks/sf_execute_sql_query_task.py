@@ -52,7 +52,7 @@ class SFExecuteSQLQueryTask(QgsTask):
         """
         try:
             self._result = get_limit_sql_query(
-                query=self.query[:-1] if self.query.endswith(";") else self.query,
+                query=self.query,
                 context_information=self.context_information,
                 limit=self.limit,
             )
