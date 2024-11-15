@@ -124,6 +124,8 @@ class SFConnectionStringDialog(QDialog, FORM_CLASS_SFCS):
                 "warehouse": self.txtWarehouse.text(),
                 "database": self.txtDatabase.text(),
                 "login_timeout": 5,
+                "network_timeout": 20,
+                "socket_timeout": 20,
             }
             if self.txtRole.text() != "":
                 connection_params["role"] = self.txtRole.text()
