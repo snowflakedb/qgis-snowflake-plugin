@@ -20,7 +20,21 @@ class SFMetadataProvider(QgsProviderMetadata):
         :param str uri: uri to convert
         :returns: dict of components as strings
         """
-        matches = re.findall(r"(\w+)=(.*?)(?= *\w+=|$)", uri)
+        supported_keys = [
+            "connection_name",
+            "sql_query",
+            "schema_name",
+            "table_name",
+            "srid",
+            "geom_column",
+            "geometry_type",
+            "geo_column_type",
+        ]
+        matches = re.findall(
+            f"({'|'.join(supported_keys)})=(.*?) *?(?={'|'.join(supported_keys)}=|$)",
+            uri,
+            flags=re.DOTALL,
+        )
         params = {key: value for key, value in matches}
         return params
 

@@ -438,7 +438,7 @@ def get_geo_column_type(
 
 def check_table_exceeds_size(
     context_information: dict,
-    limit_size: int = 10000,
+    limit_size: int = 50000,
 ) -> bool:
     """
     Checks if the number of rows in a specified table exceeds a given size limit.

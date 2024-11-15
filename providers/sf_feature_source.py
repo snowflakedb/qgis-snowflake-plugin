@@ -31,7 +31,7 @@ class SFFeatureSource(QgsAbstractFeatureSource):
     def getFeatures(self, request) -> QgsFeatureIterator:
         from ..providers.sf_feature_iterator import SFFeatureIterator
 
-        return QgsFeatureIterator(SFFeatureIterator(self, request))
+        return QgsFeatureIterator(SFFeatureIterator(source=self, request=request))
 
     def get_provider(self):
         return self._provider

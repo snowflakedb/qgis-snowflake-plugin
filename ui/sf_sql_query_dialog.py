@@ -67,6 +67,7 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
                 sf_convert_sql_query_to_layer_task.on_handle_error.connect(
                     self.on_handle_error
                 )
+                sf_convert_sql_query_to_layer_task.on_success.connect(self.on_success)
                 QgsApplication.taskManager().addTask(sf_convert_sql_query_to_layer_task)
         except Exception as e:
             QMessageBox.information(
@@ -74,6 +75,9 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
                 "SFSQLQueryDialog - Add Layer from SQL Query",
                 f"Adding Layer from SQL Query failed.\n\nExtended error information:\n{str(e)}",
             )
+
+    def on_success(self):
+        self.close()
 
     def temp_deactivated_options(self) -> None:
         self.mProgressBar.setVisible(False)
