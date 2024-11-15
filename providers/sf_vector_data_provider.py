@@ -19,6 +19,7 @@ from ..managers.sf_connection_manager import SFConnectionManager
 
 from ..helpers.wrapper import parse_uri
 from ..helpers.mappings import (
+    SNOWFLAKE_METADATA_TYPE_CODE_DICT,
     mapping_snowflake_qgis_geometry,
     mapping_snowflake_qgis_type,
 )
@@ -237,6 +238,12 @@ class SFVectorDataProvider(QgsVectorDataProvider):
                     )
 
                     field_info = cur.fetchall()
+                    cur.close()
+                    for field_name, field_type in field_info:
+                        qgs_field = QgsField(
+                            field_name, mapping_snowflake_qgis_type[field_type]
+                        )
+                        self._fields.append(qgs_field)
                 else:
                     field_info = []
                     cur = self.connection_manager.execute_query(
@@ -246,16 +253,20 @@ class SFVectorDataProvider(QgsVectorDataProvider):
                     )
                     description = cur.description
                     cur.close()
+
                     for data in description:
                         # it is already used to set the feature id
-                        if data[1] not in ["GEOMETRY", "GEOGRAPHY"]:
-                            field_info.append((data[0], data[1]))
-
-                for field_name, field_type in field_info:
-                    qgs_field = QgsField(
-                        field_name, mapping_snowflake_qgis_type[field_type]
-                    )
-                    self._fields.append(qgs_field)
+                        if data[1] not in [14, 15]:
+                            qgs_field = QgsField(
+                                data[0],
+                                SNOWFLAKE_METADATA_TYPE_CODE_DICT.get(
+                                    data[1],
+                                    SNOWFLAKE_METADATA_TYPE_CODE_DICT[2][
+                                        "qvariant_type"
+                                    ],
+                                ).get("qvariant_type"),
+                            )
+                            self._fields.append(qgs_field)
 
         return self._fields
 

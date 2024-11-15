@@ -26,7 +26,7 @@ mapping_snowflake_qgis_type = {
     "NUMBER": QVariant.Double,
     "STRING": QVariant.String,
     "Date": QVariant.Date,
-    "bool": QVariant.Bool,
+    "BOOL": QVariant.Bool,
     "JSON": QVariant.String,
     "TEXT": QVariant.String,
     "ARRAY": QVariant.List,
@@ -38,4 +38,31 @@ mapping_snowflake_qgis_type = {
     "TIMESTAMP_NTZ": QVariant.DateTime,
     "TIMESTAMP_TZ": QVariant.DateTime,
     "VARIANT": QVariant.String,
+}
+
+
+SNOWFLAKE_METADATA_TYPE_CODE_DICT = {
+    0: {"name": "FIXED", "qvariant_type": QVariant.Double},  # NUMBER/INT
+    1: {"name": "REAL", "qvariant_type": QVariant.Double},  # REAL
+    2: {"name": "TEXT", "qvariant_type": QVariant.String},  # VARCHAR/STRING
+    3: {"name": "DATE", "qvariant_type": QVariant.Date},  # DATE
+    4: {"name": "TIMESTAMP", "qvariant_type": QVariant.DateTime},  # TIMESTAMP
+    5: {"name": "VARIANT", "qvariant_type": QVariant.String},  # VARIANT
+    6: {
+        "name": "TIMESTAMP_LTZ",
+        "qvariant_type": QVariant.DateTime,
+    },  # TIMESTAMP_LTZ
+    7: {"name": "TIMESTAMP_TZ", "qvariant_type": QVariant.DateTime},  # TIMESTAMP_TZ
+    8: {
+        "name": "TIMESTAMP_NTZ",
+        "qvariant_type": QVariant.DateTime,
+    },  # TIMESTAMP_NTZ
+    9: {"name": "OBJECT", "qvariant_type": QVariant.String},  # OBJECT
+    10: {"name": "ARRAY", "qvariant_type": QVariant.String},  # ARRAY
+    11: {"name": "BINARY", "qvariant_type": QVariant.BitArray},  # BINARY
+    12: {"name": "TIME", "qvariant_type": QVariant.Time},  # TIME
+    13: {"name": "BOOLEAN", "qvariant_type": QVariant.Bool},  # BOOLEAN
+    14: {"name": "GEOGRAPHY", "qvariant_type": QVariant.String},  # GEOGRAPHY
+    15: {"name": "GEOMETRY", "qvariant_type": QVariant.String},  # GEOMETRY
+    16: {"name": "VECTOR", "qvariant_type": QVariant.Vector2D},  # VECTOR
 }
