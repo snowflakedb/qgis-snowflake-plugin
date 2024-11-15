@@ -10,6 +10,7 @@ from qgis.PyQt.QtCore import pyqtSignal
 
 class SFConvertSQLQueryToLayerTask(QgsTask):
     on_handle_error = pyqtSignal(str, str)
+    on_success = pyqtSignal()
 
     def __init__(
         self,
@@ -95,4 +96,7 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
         Returns:
             None
         """
-        pass
+        self.on_success.emit() if result else self.on_handle_error.emit(
+            "SFConvertColumnToLayerTask failed",
+            "Running snowflake convert column to layer task did not finished.",
+        )
