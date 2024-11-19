@@ -60,6 +60,8 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
+from .managers.sf_connection_manager import SFConnectionManager
+
 from .helpers.data_base import (
     create_schema,
     create_table,
@@ -138,6 +140,10 @@ class QGISSnowflakeConnectorAlgorithm(QgsProcessingAlgorithm):
                 "Geometry Column",
                 defaultValue="",  # Optional default value
             )
+        )
+
+        self.connection_manager: SFConnectionManager = (
+            SFConnectionManager.get_instance()
         )
 
     def processAlgorithm(self, parameters, context, feedback):
@@ -286,6 +292,8 @@ class QGISSnowflakeConnectorAlgorithm(QgsProcessingAlgorithm):
                     else:
                         if feat_val is None:
                             query_values += "NULL"
+                        elif isinstance(feat_val, QVariant) and feat_val.isNull():
+                            query_values += "NULL"
                         elif field.type() == QVariant.String:
                             feat_val = feat_val.replace("'", "\\'")
                             query_values += f"'{feat_val}'"
@@ -415,6 +423,28 @@ class QGISSnowflakeConnectorAlgorithm(QgsProcessingAlgorithm):
                 return False, "Please select a connection!"
 
             if not selected_table_is_empty:
+                # Check if the selected table exists
+                source = self.parameterAsSource(parameters, self.INPUT, context)
+                count_table = get_count_tables(
+                    connection_name=selected_connection,
+                    database_name=selected_database,
+                    schema_name=selected_schema,
+                    table_name=selected_table,
+                )
+                if count_table == 0:
+                    query_create_table = self.get_create_table_query(
+                        geom_column=geom_column,
+                        source=source,
+                        is_snowflake_layer=False,
+                        database_name=selected_database,
+                        schema_name=selected_schema,
+                        table_name=selected_table,
+                    )
+
+                    create_table(
+                        connection_name=selected_connection, query=query_create_table
+                    )
+
                 auth_information = get_authentification_information(
                     self.settings, selected_connection
                 )
@@ -433,7 +463,7 @@ class QGISSnowflakeConnectorAlgorithm(QgsProcessingAlgorithm):
                 available_columns = []
                 column_found = False
                 for row in cur_select_columns.fetchall():
-                    if row[0] == geom_column:
+                    if row[0].upper() == geom_column.upper():
                         cur_select_columns.close()
                         column_found = True
                         return True, ""
