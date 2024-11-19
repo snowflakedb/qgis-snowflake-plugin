@@ -27,6 +27,7 @@ class DynamicConnectionComboBoxWidget(WidgetWrapper):
         self.connections_cb = QComboBox()
         self.schemas_cb = QComboBox()
         self.tables_cb = QComboBox()
+        self.tables_cb.setEditable(True)
 
         # Populate the comboboxes with your desired items
         self.settings = get_qsettings()

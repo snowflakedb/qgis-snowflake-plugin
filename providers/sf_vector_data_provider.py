@@ -1,6 +1,9 @@
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsDataProvider,
+    QgsFeature,
+    QgsFeatureIterator,
+    QgsFeatureRequest,
     QgsField,
     QgsFields,
     QgsRectangle,
@@ -8,6 +11,8 @@ from qgis.core import (
     QgsWkbTypes,
 )
 from qgis.PyQt.QtCore import QMetaType
+
+from .sf_feature_iterator import SFFeatureIterator
 
 from ..helpers.data_base import check_from_clause_exceeds_size
 
@@ -344,6 +349,10 @@ class SFVectorDataProvider(QgsVectorDataProvider):
         cur.close()
 
         return results
+
+    def getFeatures(self, request=QgsFeatureRequest()) -> QgsFeature:
+        """Return next feature"""
+        return QgsFeatureIterator(SFFeatureIterator(SFFeatureSource(self), request))
 
     def subsetString(self) -> str:
         return self.filter_where_clause
