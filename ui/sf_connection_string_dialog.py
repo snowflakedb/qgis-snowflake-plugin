@@ -1,12 +1,14 @@
 from PyQt5.QtWidgets import QWidget
 from qgis.core import Qgis
-from qgis.gui import QgsMessageBar
+from qgis.gui import QgsMessageBar, QgsAuthSettingsWidget
 from qgis.PyQt import uic
-from qgis.PyQt.QtCore import QSettings, pyqtSignal
+from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QLineEdit,
     QMessageBox,
+    QComboBox,
 )
 import os
 import typing
@@ -35,14 +37,23 @@ class SFConnectionStringDialog(QDialog, FORM_CLASS_SFCS):
             connection_name (str, optional): The name of the connection. Defaults to "".
         """
         super().__init__(parent)
+        self.txtName: QLineEdit
+        self.txtWarehouse: QLineEdit
+        self.txtAccount: QLineEdit
+        self.txtRole: QLineEdit
+        self.btnConnect: QDialogButtonBox
+        self.buttonBox: QDialogButtonBox
+        self.cbxConnectionType: QComboBox
+        self.txtDatabase: QLineEdit
+        self.mAuthSettings: QgsAuthSettingsWidget
         self.setupUi(self)
         self.btnConnect.clicked.connect(self.test_connection_clicked)
-        ok_button = self.buttonBox.button(QDialogButtonBox.Ok)
-        ok_button.clicked.connect(self.button_box_ok_clicked)
+        self.buttonBox.clicked.connect(self.button_box_ok_clicked)
         self.settings = get_qsettings()
         self.cbxConnectionType.addItem("Default Authentication")
         self.cbxConnectionType.addItem("Single sign-on (SSO)")
         self.connection_name = connection_name
+        self._sf_connection_manager = SFConnectionManager.get_instance()
         self.deactivate_temp()
 
     def deactivate_temp(self) -> None:
@@ -69,6 +80,33 @@ class SFConnectionStringDialog(QDialog, FORM_CLASS_SFCS):
         self.cb_projectsInDatabase.setVisible(False)
         self.cb_metadataInDatabase.setVisible(False)
 
+    def get_unfilled_required_fields(self) -> bool:
+        """
+        Checks for unfilled required fields in the connection dialog.
+
+        This method verifies if the required fields in the connection dialog are filled.
+        It returns a list of unfilled required fields with their corresponding names.
+
+        Returns:
+            list: A list of strings representing the names of unfilled required fields.
+        """
+        fields = [
+            (self.txtName, "Connection Name"),
+            (self.txtWarehouse, "Warehouse"),
+            (self.txtAccount, "Account"),
+            (self.txtDatabase, "Database"),
+        ]
+
+        unfilled_required_fields = [
+            f"- {field_name}\n" for widget, field_name in fields if widget.text() == ""
+        ]
+
+        if self.mAuthSettings.username() == "":
+            unfilled_required_fields.append(
+                "- Username (Under the Basic Authentification Tab)\n"
+            )
+        return unfilled_required_fields
+
     def button_box_ok_clicked(self) -> None:
         """
         Save the connection settings when the OK button is clicked.
@@ -84,6 +122,14 @@ class SFConnectionStringDialog(QDialog, FORM_CLASS_SFCS):
             update_connections_signal: Emitted after the connection settings have been saved.
         """
         try:
+            fields_not_verified = self.get_unfilled_required_fields()
+            if len(fields_not_verified) > 0:
+                QMessageBox.critical(
+                    self,
+                    "Error message in New/Edit connection",
+                    f"Please specify all mandatory fields:\n{''.join(fields_not_verified)}",
+                )
+                return
             conn_settings = {
                 "name": self.txtName.text(),
                 "warehouse": self.txtWarehouse.text(),
@@ -100,7 +146,11 @@ class SFConnectionStringDialog(QDialog, FORM_CLASS_SFCS):
             if self.connection_name != self.txtName.text():
                 if self.connection_name is not None and self.connection_name != "":
                     remove_connection(self.settings, self.connection_name)
+
+            if self.txtName.text() in self._sf_connection_manager.opened_connections:
+                del self._sf_connection_manager.opened_connections[self.txtName.text()]
             self.update_connections_signal.emit()
+            super().accept()
         except Exception as e:
             QMessageBox.information(
                 None,
