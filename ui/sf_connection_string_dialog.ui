@@ -301,21 +301,5 @@
     </hint>
    </hints>
   </connection>
-  <connection>
-   <sender>buttonBox</sender>
-   <signal>accepted()</signal>
-   <receiver>QgsPgNewConnectionBase</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>395</x>
-     <y>501</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>450</x>
-     <y>287</y>
-    </hint>
-   </hints>
-  </connection>
  </connections>
 </ui>
