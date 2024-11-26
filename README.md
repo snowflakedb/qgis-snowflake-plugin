@@ -15,13 +15,16 @@ You can try latest development versions by downloading and installing the plugin
 
 ## Getting Started
 1. Install the plugin with the QGIS plugin manager.
+
 2. Go to Layer > Data Source Manager. In the list of data sources click on Snowflake and create a new connectionn
 <img src ='assets/data_source_manager.png'  width=700>
+
 3. Add connection details and choose Connection type (default or SSO)
 <img src ='assets/new_connection.png'  width=500>
 You can get your account locator here:
 <img src ='assets/account_locator.png'  width=700>
-Note: If you are using Azure, the account locator would look like locator.region.azure. For example snowflake.west-europe.azure.
+Note: Sometimes, the account locator would look like locator.region.azure. For example snowflake.west-europe.azure or abc12345.us-east-1.
+
 4. Use standard features for reading/writing geospatial data
 <img src ='assets/snowflake_qgis.png'  width=800>
 
