@@ -26,7 +26,7 @@ You can get your account locator here:
 Note: Sometimes, the account locator would look like locator.region.azure. For example snowflake.west-europe.azure or abc12345.us-east-1.
 
 4. Use standard features for reading/writing geospatial data
-<img src ='assets/snowflake_qgis.png'  width=800>
+<img src ='assets/snowflake_qgis.jpg'  width=800>
 
 ## Support
 If you found bugs or have suggestions for improving the plugin, please [submit](https://github.com/snowflakedb/qgis-snowflake-connector/issues) the issue or contribute by creating a pull request.
