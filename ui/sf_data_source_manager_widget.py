@@ -175,6 +175,8 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
             self.cmbConnections.clear()
             for group in root_groups:
                 self.cmbConnections.addItem(group)
+
+            self.refresh()
         except Exception as e:
             QMessageBox.information(
                 None,
@@ -224,6 +226,9 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
             selected_connection = self.cmbConnections.currentText()
             if selected_connection is not None and selected_connection != "":
                 another_window = SFConnectionStringDialog(self, selected_connection)
+                another_window.update_connections_signal.connect(
+                    self.update_cmb_connections
+                )
                 auth_information = get_authentification_information(
                     self.settings, selected_connection
                 )
@@ -289,6 +294,7 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
             if selected_connection is not None and selected_connection != "":
                 task = SFConnectTask(selected_connection)
                 task.on_data_ready.connect(self.on_data_ready)
+                task.on_handle_error.connect(on_handle_error)
                 QgsApplication.taskManager().addTask(task)
             else:
                 QMessageBox.information(

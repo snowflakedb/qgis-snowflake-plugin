@@ -1,5 +1,3 @@
-import traceback
-
 from ..helpers.data_base import (
     get_geo_column_type,
     get_srid_from_table_geo_column,
@@ -86,10 +84,9 @@ class SFConvertColumnToLayerTask(QgsTask):
                 QgsProject.instance().addMapLayer(layer)
             return True
         except Exception as e:
-            stack_trace = traceback.format_exc()
             self.on_handle_error.emit(
                 "SFConvertColumnToLayerTask run failed",
-                f"Running snowflake convert column to layer task failed.\n\nExtended error information:\n{str(e)}-{stack_trace}",
+                f"Running snowflake convert column to layer task failed.\n\nExtended error information:\n{str(e)}",
             )
             return False
 

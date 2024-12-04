@@ -1,11 +1,9 @@
-import json
-import traceback
 from PyQt5.QtWidgets import QWidget
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem
 from qgis.PyQt import uic
-from qgis.PyQt.QtCore import pyqtSignal, QVariant
+from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtWidgets import QDialog, QMessageBox
-from qgis.core import QgsApplication, QgsFeature, QgsGeometry, QgsPointXY
+from qgis.core import QgsApplication
 import os
 import typing
 
@@ -17,7 +15,6 @@ from ..tasks.sf_convert_sql_query_to_layer_task import SFConvertSQLQueryToLayerT
 from ..tasks.sf_execute_sql_query_task import SFExecuteSQLQueryTask
 
 from ..helpers.utils import get_qsettings
-from snowflake.connector.cursor import ResultMetadata
 
 
 FORM_CLASS_SFCS, _ = uic.loadUiType(
@@ -170,11 +167,10 @@ class SFSQLQueryDialog(QDialog, FORM_CLASS_SFCS):
                 self.model.appendRow(items)
 
         except Exception as e:
-            stack_trace = traceback.format_exc()
             QMessageBox.information(
                 None,
                 "SFSQLQueryDialog - Data Ready",
-                f"Data Ready failed.\n\nExtended error information:\n{str(e)}\n{stack_trace}",
+                f"Data Ready failed.\n\nExtended error information:\n{str(e)}",
             )
 
     def on_handle_error(self, title, message):
