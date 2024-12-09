@@ -404,3 +404,8 @@ class SFVectorDataProvider(QgsVectorDataProvider):
                 fields_index.append(i)
 
         return fields_index
+
+    def reloadData(self):
+        """Reload data from the data source."""
+        self._features = []
+        self._features_loaded = False

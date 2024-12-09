@@ -7,9 +7,11 @@ from ..helpers.data_base import (
 )
 from ..helpers.messages import get_proceed_cancel_message_box
 from ..helpers.utils import (
+    decodeUri,
     get_auth_information,
     get_authentification_information,
     get_connection_child_groups,
+    get_path_nodes,
     get_qsettings,
     on_handle_error,
     on_handle_warning,
@@ -23,6 +25,8 @@ from qgis.core import (
     Qgis,
     QgsApplication,
     QgsErrorItem,
+    QgsProject,
+    QgsVectorLayer,
 )
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QMessageBox, QAction, QWidget
@@ -683,6 +687,42 @@ ORDER BY {column_name}"""
         Refreshes the data item.
         """
         self.refresh_internal()
+        layers = QgsProject.instance().mapLayers().values()
+        for layer in layers:
+            layer: QgsVectorLayer
+            source_as_dict = decodeUri(layer.source())
+            connection_name, schema_name, table_name = get_path_nodes(self.path())
+
+            if table_name is not None:
+                if (
+                    source_as_dict["connection_name"] == connection_name
+                    and source_as_dict["schema_name"] == schema_name
+                    and source_as_dict["table_name"] == table_name
+                ):
+                    self.refresh_data_provider(layer)
+            elif schema_name is not None:
+                if (
+                    source_as_dict["connection_name"] == connection_name
+                    and source_as_dict["schema_name"] == schema_name
+                ):
+                    self.refresh_data_provider(layer)
+            elif connection_name is not None:
+                if source_as_dict["connection_name"] == connection_name:
+                    self.refresh_data_provider(layer)
+
+    def refresh_data_provider(self, layer: QgsVectorLayer) -> None:
+        """
+        Refreshes the data provider for the given QgsVectorLayer.
+
+        This method reloads the data from the data provider, reloads the layer,
+        and triggers a repaint of the layer to ensure that the latest data is displayed.
+
+        Args:
+            layer (QgsVectorLayer): The vector layer whose data provider needs to be refreshed.
+        """
+        layer.dataProvider().reloadData()
+        layer.reload()
+        layer.triggerRepaint()
 
     def on_message_handler(self, title: str, message: str) -> None:
         """
