@@ -1,6 +1,7 @@
-import re
 from typing import Dict
 from qgis.core import QgsProviderMetadata
+
+from ..helpers.utils import decodeUri as du
 
 from .sf_vector_data_provider import SFVectorDataProvider
 
@@ -20,23 +21,7 @@ class SFMetadataProvider(QgsProviderMetadata):
         :param str uri: uri to convert
         :returns: dict of components as strings
         """
-        supported_keys = [
-            "connection_name",
-            "sql_query",
-            "schema_name",
-            "table_name",
-            "srid",
-            "geom_column",
-            "geometry_type",
-            "geo_column_type",
-        ]
-        matches = re.findall(
-            f"({'|'.join(supported_keys)})=(.*?) *?(?={'|'.join(supported_keys)}=|$)",
-            uri,
-            flags=re.DOTALL,
-        )
-        params = {key: value for key, value in matches}
-        return params
+        return du(uri)
 
     def encodeUri(self, parts: Dict[str, str]) -> str:
         """Reassembles a provider data source URI from its component paths

@@ -1,4 +1,6 @@
 from datetime import datetime
+import re
+from typing import Dict
 from qgis.PyQt.QtCore import QSettings
 import os
 from qgis.PyQt.QtWidgets import QMessageBox
@@ -361,3 +363,48 @@ def get_connection_child_groups() -> list:
     root_groups = settings.childGroups()
     settings.endGroup()
     return root_groups
+
+
+def decodeUri(uri: str) -> Dict[str, str]:
+    """Breaks a provider data source URI into its component paths
+    (e.g. file path, layer name).
+
+    :param str uri: uri to convert
+    :returns: dict of components as strings
+    """
+    supported_keys = [
+        "connection_name",
+        "sql_query",
+        "schema_name",
+        "table_name",
+        "srid",
+        "geom_column",
+        "geometry_type",
+        "geo_column_type",
+    ]
+    matches = re.findall(
+        f"({'|'.join(supported_keys)})=(.*?) *?(?={'|'.join(supported_keys)}=|$)",
+        uri,
+        flags=re.DOTALL,
+    )
+    params = {key: value for key, value in matches}
+    return params
+
+
+def get_path_nodes(path: str):
+    """
+    Extracts and returns the connection name, schema name, and table name from a given path.
+
+    Args:
+        path (str): The path string to be split and parsed.
+
+    Returns:
+        tuple: A tuple containing the connection name, schema name, and table name.
+               If any of these components are not present in the path, their value will be None.
+    """
+    path_splitted = path.split("/")
+    connection_name = path_splitted[2] if len(path_splitted) > 2 else None
+    schema_name = path_splitted[3] if len(path_splitted) > 3 else None
+    table_name = path_splitted[4] if len(path_splitted) > 4 else None
+
+    return connection_name, schema_name, table_name
