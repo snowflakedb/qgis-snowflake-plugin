@@ -51,9 +51,10 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
     """
-    from .helpers.utils import check_install_snowflake_connector_package
+    from .helpers.utils import check_install_snowflake_connector_package, check_install_h3_package
 
     check_install_snowflake_connector_package()
+    check_install_h3_package()
     #
     from .qgis_snowflake_connector import QGISSnowflakeConnectorPlugin
 

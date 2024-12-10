@@ -244,7 +244,7 @@ def check_package_installed(package_name) -> bool:
     return False
 
 
-def check_install_snowflake_connector_package() -> None:
+def check_install_package(package_name) -> None:
     """
     Checks if the 'snowflake-connector-python' package is installed, and if not, installs it along with the 'pyopenssl' package.
 
@@ -253,7 +253,7 @@ def check_install_snowflake_connector_package() -> None:
     Raises:
         subprocess.CalledProcessError: If the pip installation commands fail.
     """
-    if not check_package_installed("snowflake-connector-python"):
+    if not check_package_installed(package_name):
         import subprocess
         import platform
         import sys
@@ -272,12 +272,18 @@ def check_install_snowflake_connector_package() -> None:
                 "-m",
                 "pip",
                 "install",
-                "snowflake-connector-python[secure-local-storage]",
+                package_name + "[secure-local-storage]",
             ]
         )
         subprocess.call(
             [python3_path, "-m", "pip", "install", "pyopenssl", "--upgrade"]
         )
+
+def check_install_snowflake_connector_package() -> None:
+    check_install_package("snowflake-connector-python")
+
+def check_install_h3_package() -> None:
+    check_install_package("h3")
 
 
 def uninstall_snowflake_connector_package() -> None:
