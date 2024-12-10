@@ -51,20 +51,20 @@ class SFConvertColumnToLayerTask(QgsTask):
             bool: True if the task is executed successfully, False otherwise.
         """
         try:
-            srid = get_srid_from_table_geo_column(
-                geo_column_name=self.column,
-                table_name=self.table,
-                context_information=self.context_information,
-            )
-            geo_type_list = get_type_from_table_geo_column(
-                geo_column_name=self.column,
-                table_name=self.table,
-                context_information=self.context_information,
-            )
             geo_column_type = get_geo_column_type(
                 geo_column_name=self.column,
                 context_information=self.context_information,
             )
+            srid = get_srid_from_table_geo_column(
+                geo_column_name=self.column,
+                table_name=self.table,
+                context_information=self.context_information,
+            ) if geo_column_type == "GEOMETRY" else 4326
+            geo_type_list = get_type_from_table_geo_column(
+                geo_column_name=self.column,
+                table_name=self.table,
+                context_information=self.context_information,
+            ) if geo_column_type != "NUMBER" else ["POLYGON"]
             for geo_type in geo_type_list:
                 uri = (
                     f"connection_name={self.connection_name} sql_query= "

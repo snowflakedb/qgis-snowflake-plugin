@@ -32,7 +32,7 @@ class SFConnectTask(QgsTask):
             SELECT TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, COMMENT, COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_CATALOG = '{self.auth_information["database"].upper()}'
-            AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY')
+            AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY', 'NUMBER')
             ORDER BY TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE
             """
             self.connection_name = connection_name
@@ -62,7 +62,7 @@ class SFConnectTask(QgsTask):
                     current_item = QStandardItem(feat.attribute("TABLE_SCHEMA"))
                     self.rows_items.append(current_item)
                 srid = ""
-                if feat.attribute("DATA_TYPE") == "GEOGRAPHY":
+                if feat.attribute("DATA_TYPE") != "GEOMETRY":
                     srid = "4326"
 
                 if (
