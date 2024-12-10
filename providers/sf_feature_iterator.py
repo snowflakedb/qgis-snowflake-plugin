@@ -176,6 +176,11 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                         f'ST_INTERSECTS("{geom_column}", '
                         f"ST_GEOGRAPHYFROMWKT('{filter_rect.asWktPolygon()}'))"
                     )
+                if self._provider._geo_column_type == "NUMBER":
+                    filter_geom_clause = (
+                        f'ST_INTERSECTS(H3_CELL_TO_BOUNDARY("{geom_column}"), '
+                        f"ST_GEOGRAPHYFROMWKT('{filter_rect.asWktPolygon()}'))"
+                    )
                 if filter_geom_clause != "":
                     filter_geom_clause = f"and {filter_geom_clause}"
 
@@ -188,6 +193,9 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                         where_clause += f" and {clause}"
 
             geom_query = f'ST_ASWKB("{geom_column}"), "{geom_column}", '
+            if self._provider._geo_column_type == "NUMBER":
+                geom_query = f'ST_ASWKB(H3_CELL_TO_BOUNDARY("{geom_column}")), "{geom_column}", '
+
             self._request_no_geometry = (
                 self._request.flags() & QgsFeatureRequest.Flag.NoGeometry
             )
@@ -200,6 +208,8 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                 index = self._provider._fields[self._provider.primary_key()].name()
 
             filter_geo_type = f"ST_ASGEOJSON(\"{geom_column}\"):type ILIKE '{self._provider._geometry_type}'"
+            if self._provider._geo_column_type == "NUMBER":
+                filter_geo_type = f"H3_IS_VALID_CELL(\"{geom_column}\")"
 
             order_limit_clause = ""
             if self._provider._is_limited_unordered:

@@ -348,7 +348,7 @@ FROM INFORMATION_SCHEMA.COLUMNS
 WHERE table_catalog = '{auth_information["database"]}'
 {schema_filter}
 {table_filter}
-AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY')
+AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY', 'NUMBER')
 ORDER BY {column_name}"""
 
         return auth_information, column_name, children_item_type, query

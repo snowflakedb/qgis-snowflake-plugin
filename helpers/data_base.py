@@ -53,7 +53,7 @@ def get_table_column_iterator(
 FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_CATALOG ILIKE '{auth_information["database"]}'
 AND TABLE_SCHEMA ILIKE '{table_name}'
-AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY')
+AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY', 'NUMBER')
 ORDER BY TABLE_NAME, COLUMN_NAME"""
     sf_data_provider = SFDataProvider(auth_information)
 

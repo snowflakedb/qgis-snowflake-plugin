@@ -111,35 +111,18 @@ class SFVectorDataProvider(QgsVectorDataProvider):
 
     @classmethod
     def createProvider(cls, uri, providerOptions, flags=QgsDataProvider.ReadFlags()):
-        return SFVectorDataProvider(uri, providerOptions, flags)
+        base_provider = SFVectorDataProvider(uri, providerOptions, flags)
+        if base_provider._geo_column_type == "NUMBER":
+            return SFH3VectorDataProvider(uri, providerOptions, flags)
+        elif base_provider._geo_column_type in ["GEOGRAPHY", "GEOMETRY"]:
+            return SFGeoVectorDataProvider(uri, providerOptions, flags)
+        else:
+            return base_provider
 
     def capabilities(self) -> QgsVectorDataProvider.Capabilities:
         return (
             QgsVectorDataProvider.CreateSpatialIndex | QgsVectorDataProvider.SelectAtId
         )
-
-    def featureCount(self) -> int:
-        """returns the number of entities in the table"""
-
-        if not self._feature_count:
-            if not self._is_valid:
-                self._feature_count = 0
-            else:
-                query = f"SELECT COUNT(*) FROM {self._from_clause}"
-                query += f" WHERE ST_ASGEOJSON(\"{self._column_geom}\"):type ILIKE '{self._geometry_type}'"
-                if self.subsetString():
-                    query += f" AND {self.subsetString()}"
-
-                cur = self.connection_manager.execute_query(
-                    connection_name=self._connection_name,
-                    query=query,
-                    context_information=self._context_information,
-                )
-
-                self._feature_count = cur.fetchone()[0]
-                cur.close()
-
-        return self._feature_count
 
     def name(self) -> str:
         """Return the name of provider
@@ -181,35 +164,6 @@ class SFVectorDataProvider(QgsVectorDataProvider):
                 self._wkb_type = geometry_type
 
         return self._wkb_type
-
-    def extent(self) -> QgsRectangle:
-        """Calculates the extent of the bend and returns a QgsRectangle"""
-        if not self._extent:
-            if not self._is_valid or not self._column_geom:
-                self._extent = QgsRectangle()
-            else:
-                query = (
-                    f'SELECT MIN(ST_XMIN("{self._column_geom}")), '
-                    f'MIN(ST_YMIN("{self._column_geom}")), '
-                    f'MAX(ST_XMAX("{self._column_geom}")), '
-                    f'MAX(ST_YMAX("{self._column_geom}")) '
-                    f"FROM {self._from_clause} "
-                    f'WHERE "{self._column_geom}" IS NOT NULL AND '
-                    f"ST_ASGEOJSON(\"{self._column_geom}\"):type ILIKE '{self._geometry_type}'"
-                )
-
-                cur = self.connection_manager.execute_query(
-                    connection_name=self._connection_name,
-                    query=query,
-                    context_information=self._context_information,
-                )
-
-                extent_bounds = cur.fetchone()
-                cur.close()
-
-                self._extent = QgsRectangle(*extent_bounds)
-
-        return self._extent
 
     def updateExtents(self) -> None:
         """Update extent"""
@@ -409,3 +363,132 @@ class SFVectorDataProvider(QgsVectorDataProvider):
         """Reload data from the data source."""
         self._features = []
         self._features_loaded = False
+
+class SFGeoVectorDataProvider(SFVectorDataProvider):
+    def __init__(
+        self,
+        uri="",
+        providerOptions=QgsDataProvider.ProviderOptions(),
+        flags=QgsDataProvider.ReadFlags(),
+    ):
+        super().__init__(uri, providerOptions, flags)
+
+    def featureCount(self) -> int:
+        """returns the number of entities in the table"""
+
+        if not self._feature_count:
+            if not self._is_valid:
+                self._feature_count = 0
+            else:
+                query = f"SELECT COUNT(*) FROM {self._from_clause}"
+                if self.subsetString():
+                    query += f" AND {self.subsetString()}"
+
+                cur = self.connection_manager.execute_query(
+                    connection_name=self._connection_name,
+                    query=query,
+                    context_information=self._context_information,
+                )
+
+                self._feature_count = cur.fetchone()[0]
+                cur.close()
+
+        return self._feature_count
+
+    def extent(self) -> QgsRectangle:
+        """Calculates the extent of the bend and returns a QgsRectangle"""
+        if not self._extent:
+            if not self._is_valid or not self._column_geom:
+                self._extent = QgsRectangle()
+            else:
+                query = (
+                    f'SELECT MIN(ST_XMIN("{self._column_geom}")), '
+                    f'MIN(ST_YMIN("{self._column_geom}")), '
+                    f'MAX(ST_XMAX("{self._column_geom}")), '
+                    f'MAX(ST_YMAX("{self._column_geom}")) '
+                    f"FROM {self._from_clause} "
+                    f'WHERE "{self._column_geom}" IS NOT NULL AND '
+                    f"ST_ASGEOJSON(\"{self._column_geom}\"):type ILIKE '{self._geometry_type}'"
+                )
+
+                cur = self.connection_manager.execute_query(
+                    connection_name=self._connection_name,
+                    query=query,
+                    context_information=self._context_information,
+                )
+
+                extent_bounds = cur.fetchone()
+                cur.close()
+
+                self._extent = QgsRectangle(*extent_bounds)
+
+        return self._extent
+
+class SFH3VectorDataProvider(SFVectorDataProvider):
+    def __init__(
+        self,
+        uri="",
+        providerOptions=QgsDataProvider.ProviderOptions(),
+        flags=QgsDataProvider.ReadFlags(),
+    ):
+        super().__init__(uri, providerOptions, flags)
+        query = f"SELECT H3_IS_VALID_CELL(\"{self._column_geom}\") FROM {self._from_clause} WHERE {self._column_geom} IS NOT NULL LIMIT 1"
+
+        cur = self.connection_manager.execute_query(
+            connection_name=self._connection_name,
+            query=query,
+            context_information=self._context_information,
+        )
+
+        self._is_valid = cur.fetchone()[0]
+
+    def featureCount(self) -> int:
+        """returns the number of entities in the table"""
+
+        if not self._feature_count:
+            if not self._is_valid:
+                self._feature_count = 0
+            else:
+                query = f"SELECT COUNT(*) FROM {self._from_clause}"
+                query += f" WHERE H3_IS_VALID_CELL(\"{self._column_geom}\")"
+                if self.subsetString():
+                    query += f" AND {self.subsetString()}"
+
+                cur = self.connection_manager.execute_query(
+                    connection_name=self._connection_name,
+                    query=query,
+                    context_information=self._context_information,
+                )
+
+                self._feature_count = cur.fetchone()[0]
+                cur.close()
+
+        return self._feature_count
+
+    def extent(self) -> QgsRectangle:
+        """Calculates the extent of the bend and returns a QgsRectangle"""
+        if not self._extent:
+            if not self._is_valid or not self._column_geom:
+                self._extent = QgsRectangle()
+            else:
+                query = (
+                    f'SELECT MIN(ST_XMIN(H3_CELL_TO_BOUNDARY("{self._column_geom}"))), '
+                    f'MIN(ST_YMIN(H3_CELL_TO_BOUNDARY("{self._column_geom}"))), '
+                    f'MAX(ST_XMAX(H3_CELL_TO_BOUNDARY("{self._column_geom}"))), '
+                    f'MAX(ST_YMAX(H3_CELL_TO_BOUNDARY("{self._column_geom}"))) '
+                    f"FROM {self._from_clause} "
+                    f'WHERE H3_IS_VALID_CELL("{self._column_geom}")'
+                )
+
+                cur = self.connection_manager.execute_query(
+                    connection_name=self._connection_name,
+                    query=query,
+                    context_information=self._context_information,
+                )
+
+                extent_bounds = cur.fetchone()
+                cur.close()
+
+                self._extent = QgsRectangle(*extent_bounds)
+
+        return self._extent
