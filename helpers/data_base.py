@@ -462,6 +462,14 @@ def get_geo_column_type(
     return result_row[0] if result_row else None
 
 
+def limit_size_for_table(
+    context_information: dict,
+) -> int:
+    if context_information["geom_type"] == "NUMBER":
+        return 500000  # 500k
+    return 50000;  # 50k
+
+
 def check_table_exceeds_size(
     context_information: dict,
     limit_size: int = 50000,
@@ -479,6 +487,7 @@ def check_table_exceeds_size(
         bool: True if the number of rows in the table exceeds the limit size, False otherwise.
     """
 
+    limit_size = limit_size_for_table(context_information=context_information)
     return check_from_clause_exceeds_size(
         from_clause=f'"{context_information["table_name"]}"',
         context_information=context_information,

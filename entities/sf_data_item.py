@@ -1,6 +1,7 @@
 from ..managers.sf_connection_manager import SFConnectionManager
 from ..helpers.data_base import (
     check_table_exceeds_size,
+    limit_size_for_table,
     get_column_iterator,
     get_features_iterator,
     get_table_geo_columns,
@@ -49,6 +50,7 @@ class SFDataItem(QgsDataItem):
         clean_name: str,
         connection_name: str = None,
         geom_column: str = None,
+        geom_type: str = None,
     ) -> None:
         """
         Initializes a SFDataItem object.
@@ -71,6 +73,7 @@ class SFDataItem(QgsDataItem):
         self.message_handler.connect(self.on_message_handler)
         self.clean_name = clean_name
         self.geom_column = geom_column
+        self.geom_type = geom_type
         self._running_tasks = {}
 
     def createChildren(self) -> typing.List["QgsDataItem"]:
@@ -216,6 +219,7 @@ class SFDataItem(QgsDataItem):
                 type=children_item_type,
                 connection_name=self.connection_name,
                 clean_name=feat.attribute(0),
+                geom_type=feat.attribute(2),
             )
             item.geom_column = feat.attribute(1)
             children.append(item)
@@ -368,6 +372,7 @@ ORDER BY {column_name}"""
         clean_name: str,
         path: str = None,
         icon_path: str = None,
+        geom_type: str = None,
     ) -> "SFDataItem":
         """
         Create a SFDataItem object.
@@ -392,6 +397,7 @@ ORDER BY {column_name}"""
             icon_path=icon_path,
             clean_name=clean_name,
             connection_name=connection_name,
+            geom_type=geom_type,
         )
 
         return item
@@ -416,8 +422,10 @@ ORDER BY {column_name}"""
                     "schema_name": schema_data_item.clean_name,
                     "table_name": self.clean_name,
                     "geo_column": self.geom_column,
+                    "geom_type": self.geom_type,
                 }
 
+                limit_size = limit_size_for_table(context_information=context_information)
                 table_exceeds_size = check_table_exceeds_size(
                     context_information=context_information,
                 )
@@ -428,7 +436,7 @@ ORDER BY {column_name}"""
                         (
                             "The dataset is too large. Please consider using "
                             '"Execute SQL" to limit the result set. If you click '
-                            '"Proceed," only a random sample of 50 thousand rows '
+                            f'"Proceed," only a random sample of {limit_size//1000} thousand rows '
                             "will be loaded."
                         ),
                     )

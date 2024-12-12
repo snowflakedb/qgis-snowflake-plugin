@@ -80,11 +80,13 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
             qmi_table = index.siblingAtColumn(1)
             qmi_comment = index.siblingAtColumn(2)
             qmi_column = index.siblingAtColumn(3)
+            qmi_data_type = index.siblingAtColumn(4)
 
             schema = model.data(qmi_schema)
             table = model.data(qmi_table)
             comment = model.data(qmi_comment)
             column = model.data(qmi_column)
+            data_type = model.data(qmi_data_type)
 
             selected_connection = self.cmbConnections.currentText()
             auth_information = get_auth_information(selected_connection)
@@ -95,6 +97,7 @@ class SFDataSourceManagerWidget(QgsAbstractDataSourceWidget, FORM_CLASS_SFDSM):
                 "schema_name": schema,
                 "table_name": table,
                 "geo_column": column,
+                "geom_type": data_type,
             }
 
             table_exceeds_size = check_table_exceeds_size(

@@ -179,11 +179,11 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                         f'ST_INTERSECTS("{geom_column}", '
                         f"ST_GEOGRAPHYFROMWKT('{filter_rect.asWktPolygon()}'))"
                     )
-                #if self._provider._geo_column_type == "NUMBER":
-                #    filter_geom_clause = (
-                #        f'ST_INTERSECTS(H3_CELL_TO_BOUNDARY("{geom_column}"), '
-                #        f"ST_GEOGRAPHYFROMWKT('{filter_rect.asWktPolygon()}'))"
-                #    )
+                if self._provider._geometry_type == "NUMBER":
+                    filter_geom_clause = (
+                        f'ST_INTERSECTS(H3_CELL_TO_BOUNDARY("{geom_column}"), '
+                        f"ST_GEOGRAPHYFROMWKT('{filter_rect.asWktPolygon()}'))"
+                    )
                 if filter_geom_clause != "":
                     filter_geom_clause = f"and {filter_geom_clause}"
 
@@ -316,8 +316,6 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                             for indx, field_name in enumerate(
                                 self._provider.fields().names()
                             ):
-                                if field_name == self._provider._column_geom:
-                                    continue
                                 column_value = next_result[
                                     desc_result.index(field_name)
                                 ]
@@ -326,7 +324,7 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                                 )
                                 f.setAttribute(indx, converted_attribute)
                         except Exception as e:
-                            print(f"this is an error: {str(e)}")
+                            QgsMessageLog.logMessage(f"Error fetching feature: {str(e)}", 'Snowflake Plugin')
 
                 else:
                     if (
