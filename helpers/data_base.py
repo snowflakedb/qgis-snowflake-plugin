@@ -3,6 +3,7 @@ import typing
 from ..managers.sf_connection_manager import SFConnectionManager
 from ..helpers.utils import get_authentification_information, get_qsettings
 from qgis.PyQt.QtCore import QSettings
+from qgis.core import QgsFeature
 from ..providers.sf_data_source_provider import SFDataProvider
 from ..entities.sf_feature_iterator import SFFeatureIterator
 import snowflake.connector
@@ -31,9 +32,36 @@ ORDER BY SCHEMA_NAME"""
     return sf_data_provider.get_feature_iterator()
 
 
-def get_table_column_iterator(
-    settings: QSettings, connection_name: str, table_name: str
-) -> SFFeatureIterator:
+def filter_geo_columns(
+    sf_data_provider: SFDataProvider, connection_name: str, columns: typing.Iterator[QgsFeature]
+) -> typing.List[QgsFeature]:
+    geo_columns = []
+    number_queries = []
+    number_columns = []
+    for feat in columns:
+        if feat.attribute("DATA_TYPE") in ["GEOMETRY", "GEOGRAPHY"]:
+            geo_columns.append(feat)
+        if feat.attribute("DATA_TYPE") == "NUMBER":
+            number_columns.append(feat)
+            table = f'{feat.attribute("TABLE_CATALOG")}.{feat.attribute("TABLE_SCHEMA")}.{feat.attribute("TABLE_NAME")}'
+            column = f'{table}.{feat.attribute("COLUMN_NAME")}'
+            number_queries.append(f"""
+(SELECT H3_IS_VALID_CELL({column})
+FROM {table}
+WHERE {column} IS NOT NULL
+LIMIT 1)""")
+    if len(number_queries) > 0:
+        query = f'SELECT {",".join(number_queries)}'
+        result = sf_data_provider.execute_query(query, connection_name).fetchall()[0]
+        for i in range(len(result)):
+            if result[i]:
+                geo_columns.append(number_columns[i])
+    return geo_columns
+
+
+def get_table_geo_columns(
+    sf_data_provider: SFDataProvider, connection_name: str, table_name: str
+) -> typing.List[QgsFeature]:
     """
     Retrieves an iterator for the columns of a specified table in a database.
 
@@ -48,17 +76,15 @@ def get_table_column_iterator(
     Raises:
         Any exceptions raised by the underlying data provider or database query execution.
     """
-    auth_information = get_authentification_information(settings, connection_name)
-    schema_selected_query = f"""SELECT DISTINCT TABLE_NAME, COLUMN_NAME
+    schema_selected_query = f"""SELECT DISTINCT TABLE_NAME, COLUMN_NAME, DATA_TYPE, TABLE_CATALOG, TABLE_SCHEMA
 FROM INFORMATION_SCHEMA.COLUMNS
-WHERE TABLE_CATALOG ILIKE '{auth_information["database"]}'
+WHERE TABLE_CATALOG ILIKE '{sf_data_provider.connection_params["database"]}'
 AND TABLE_SCHEMA ILIKE '{table_name}'
-AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY', 'NUMBER')
 ORDER BY TABLE_NAME, COLUMN_NAME"""
-    sf_data_provider = SFDataProvider(auth_information)
 
     sf_data_provider.load_data(schema_selected_query, connection_name)
-    return sf_data_provider.get_feature_iterator()
+    columns = sf_data_provider.get_feature_iterator()
+    return filter_geo_columns(sf_data_provider=sf_data_provider, connection_name=connection_name, columns=columns)
 
 
 def get_column_iterator(

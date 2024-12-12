@@ -25,6 +25,7 @@
         <file>ui/images/fields/dateTime.svg</file>
         <file>ui/images/fields/float.svg</file>
         <file>ui/images/fields/geometry.svg</file>
+        <file>ui/images/fields/h3.svg</file>
         <file>ui/images/fields/integer.svg</file>
         <file>ui/images/fields/json.svg</file>
         <file>ui/images/fields/text.svg</file>

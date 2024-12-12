@@ -73,12 +73,16 @@ class SFConnectTask(QgsTask):
                 else:
                     standard_item_comment = QStandardItem(feat.attribute("COMMENT"))
 
+                data_type = feat.attribute("DATA_TYPE")
+                if data_type == "NUMBER":
+                    data_type = "H3GEO"
+
                 row_items = [
                     QStandardItem(feat.attribute("TABLE_SCHEMA")),
                     QStandardItem(feat.attribute("TABLE_NAME")),
                     standard_item_comment,
                     QStandardItem(feat.attribute("COLUMN_NAME")),
-                    QStandardItem(feat.attribute("DATA_TYPE")),
+                    QStandardItem(data_type),
                     QStandardItem(srid),
                 ]
 

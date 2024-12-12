@@ -3,7 +3,7 @@ from ..helpers.data_base import (
     check_table_exceeds_size,
     get_column_iterator,
     get_features_iterator,
-    get_table_column_iterator,
+    get_table_geo_columns,
 )
 from ..helpers.messages import get_proceed_cancel_message_box
 from ..helpers.utils import (
@@ -17,6 +17,7 @@ from ..helpers.utils import (
     on_handle_warning,
     remove_connection,
 )
+from ..providers.sf_data_source_provider import SFDataProvider
 from ..tasks.sf_convert_column_to_layer_task import SFConvertColumnToLayerTask
 from ..ui.sf_connection_string_dialog import SFConnectionStringDialog
 from PyQt5.QtCore import pyqtSignal
@@ -174,9 +175,6 @@ class SFDataItem(QgsDataItem):
             children.append(item)
 
     def create_schema_item(self, children: typing.List["SFDataItem"]) -> None:
-        feature_iterator = get_table_column_iterator(
-            self.settings, self.connection_name, self.clean_name
-        )
         """
         Creates schema items and appends them to the provided children list.
 
@@ -190,11 +188,18 @@ class SFDataItem(QgsDataItem):
         Returns:
             None
         """
+        auth_information = get_authentification_information(self.settings, self.connection_name)
+        sf_data_provider = SFDataProvider(auth_information)
+        columns = get_table_geo_columns(
+            sf_data_provider, self.connection_name, self.clean_name
+        )
+        columns.sort(key = lambda x: x.attribute(0))
+
         children_item_type = "table"
 
         items_metadata = []
 
-        for feat in feature_iterator:
+        for feat in columns:
             item_name = feat.attribute(0)
             if len(items_metadata) > 0:
                 last_child = children[-1]
@@ -220,7 +225,6 @@ class SFDataItem(QgsDataItem):
                     "column_name": feat.attribute(1),
                 }
             )
-        feature_iterator.close()
 
     def create_table_item(self, children: typing.List["SFDataItem"]) -> None:
         """
@@ -269,22 +273,23 @@ class SFDataItem(QgsDataItem):
         )
 
         for feat in feature_iterator:
+            is_geo_column = (table_data_item.geom_column == feat.attribute(0))
             if feat.attribute(1) in [
                 "GEOMETRY",
                 "GEOGRAPHY",
-            ] and table_data_item.geom_column != feat.attribute(0):
+            ] and not is_geo_column:
                 continue
             item = self._create_data_item(
                 name=feat.attribute(0),
                 type="field",
                 connection_name=self.connection_name,
                 clean_name=feat.attribute(0),
-                icon_path=f":/plugins/qgis-snowflake-connector/ui/images/fields/{self.get_field_type_svg_name(feat.attribute(1), feat.attribute(2))}.svg",
+                icon_path=f":/plugins/qgis-snowflake-connector/ui/images/fields/{self.get_field_type_svg_name(feat.attribute(1), feat.attribute(2), is_geo_column)}.svg",
             )
             children.append(item)
         feature_iterator.close()
 
-    def get_field_type_svg_name(self, field_type: str, field_pression: int) -> str:
+    def get_field_type_svg_name(self, field_type: str, field_pression: int, is_geo_column: bool) -> str:
         snowflake_types = {
             "ARRAY": "array",
             "BINARY": "binary",
@@ -303,7 +308,9 @@ class SFDataItem(QgsDataItem):
         }
 
         if field_type == "NUMBER":
-            if field_pression > 0:
+            if is_geo_column:
+                return "h3"
+            elif field_pression > 0:
                 return "float"
             return "integer"
         else:
