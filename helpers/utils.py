@@ -246,7 +246,7 @@ def check_package_installed(package_name) -> bool:
 
 def check_install_package(package_name) -> None:
     """
-    Checks if the 'snowflake-connector-python' package is installed, and if not, installs it along with the 'pyopenssl' package.
+    Checks if a given package is installed, and if not, installs it along with the 'pyopenssl' package.
 
     This function determines the appropriate Python executable path based on the operating system and uses it to run pip commands for installing the required packages.
 
@@ -280,9 +280,25 @@ def check_install_package(package_name) -> None:
         )
 
 def check_install_snowflake_connector_package() -> None:
+    """
+    Checks if the 'snowflake-connector-python' package is installed, and if not, installs it along with the 'pyopenssl' package.
+
+    This function determines the appropriate Python executable path based on the operating system and uses it to run pip commands for installing the required packages.
+
+    Raises:
+        subprocess.CalledProcessError: If the pip installation commands fail.
+    """
     check_install_package("snowflake-connector-python")
 
 def check_install_h3_package() -> None:
+    """
+    Checks if the 'h3' package is installed, and if not, installs it along with the 'pyopenssl' package.
+
+    This function determines the appropriate Python executable path based on the operating system and uses it to run pip commands for installing the required packages.
+
+    Raises:
+        subprocess.CalledProcessError: If the pip installation commands fail.
+    """
     check_install_package("h3")
 
 

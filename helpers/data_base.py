@@ -35,6 +35,21 @@ ORDER BY SCHEMA_NAME"""
 def filter_geo_columns(
     sf_data_provider: SFDataProvider, connection_name: str, columns: typing.Iterator[QgsFeature]
 ) -> typing.List[QgsFeature]:
+    """
+    Take only the geo columns from a list. Currently, NUMBER that are valid H3, GEOMETRY, and GEOGRAPHY.
+
+    Args:
+        sf_data_provider: The connection to the database.
+        connection_name (str): The name of the connection.
+        columns (List[QgsFeature]): A list of the column metadata,
+            required for the query. It should include the following keys:
+            - 'TABLE_CATALOG': The name of the database.
+            - 'TABLE_SCHEMA': The name of the schema.
+            - 'DATA_TYPE': The Snowflake type of the column.
+
+    Returns:
+        typing.List[QgsFeature]: The `columns` that are geo
+    """
     geo_columns = []
     number_queries = []
     number_columns = []
@@ -63,15 +78,15 @@ def get_table_geo_columns(
     sf_data_provider: SFDataProvider, connection_name: str, table_name: str
 ) -> typing.List[QgsFeature]:
     """
-    Retrieves an iterator for the columns of a specified table in a database.
+    Retrieves a list of the geo columns of a specified table in a database.
 
     Args:
-        settings (QSettings): The settings object containing configuration details.
+        sf_data_provider (SFDataProvider): The connection to the database.
         connection_name (str): The name of the database connection.
         table_name (str): The name of the table to retrieve columns from.
 
     Returns:
-        SFFeatureIterator: An iterator over the features (columns) of the specified table.
+        List[QgsFeature]: A list of the features (geo columns) of the specified table.
 
     Raises:
         Any exceptions raised by the underlying data provider or database query execution.
@@ -465,6 +480,15 @@ def get_geo_column_type(
 def limit_size_for_table(
     context_information: dict,
 ) -> int:
+    """
+    The limit number of rows to be fetched from a table. Currently 50k by default, and 500k for H3 columns
+
+    Args:
+        context_information (dict): A dictionary containing context information, including the column type.
+
+    Returns:
+        int: The size limit.
+    """
     if context_information["geom_type"] == "NUMBER":
         return 500000  # 500k
     return 50000;  # 50k

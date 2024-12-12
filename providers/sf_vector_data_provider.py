@@ -30,6 +30,7 @@ from ..helpers.mappings import (
 
 
 class SFVectorDataProvider(QgsVectorDataProvider):
+    """The general VectorDataProvider, which can be extended based on column type"""
     def __init__(
         self,
         uri="",
@@ -111,6 +112,7 @@ class SFVectorDataProvider(QgsVectorDataProvider):
 
     @classmethod
     def createProvider(cls, uri, providerOptions, flags=QgsDataProvider.ReadFlags()):
+        """Creates a VectorDataProvider of the appropriate type for the given column"""
         base_provider = SFVectorDataProvider(uri, providerOptions, flags)
         if base_provider._geo_column_type == "NUMBER":
             return SFH3VectorDataProvider(uri, providerOptions, flags)
@@ -365,6 +367,7 @@ class SFVectorDataProvider(QgsVectorDataProvider):
         self._features_loaded = False
 
 class SFGeoVectorDataProvider(SFVectorDataProvider):
+    """The VectorDataProvider for GEOGRAPHY and GEOMETRY columns"""
     def __init__(
         self,
         uri="",
@@ -425,6 +428,7 @@ class SFGeoVectorDataProvider(SFVectorDataProvider):
         return self._extent
 
 class SFH3VectorDataProvider(SFVectorDataProvider):
+    """The VectorDataProvider for H3 columns"""
     def __init__(
         self,
         uri="",
