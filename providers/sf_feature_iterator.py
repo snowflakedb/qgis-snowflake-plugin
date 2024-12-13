@@ -8,6 +8,8 @@ from typing import Any, Callable
 from PyQt5.QtCore import QDate, QDateTime, QMetaType, QTime
 
 # PyQGIS
+from ..helpers.data_base import limit_size_for_type
+from ..providers.sf_feature_source import SFFeatureSource
 from qgis.core import (
     QgsAbstractFeatureIterator,
     QgsCoordinateTransform,
@@ -18,9 +20,6 @@ from qgis.core import (
     QgsMessageLog,
     QgsPointXY,
 )
-
-from ..providers.sf_feature_source import SFFeatureSource
-
 import h3.api.basic_int as h3
 
 class SFFeatureIterator(QgsAbstractFeatureIterator):
@@ -216,7 +215,7 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
 
             order_limit_clause = ""
             if self._provider._is_limited_unordered:
-                order_limit_clause = " ORDER BY RANDOM() LIMIT 50000"
+                order_limit_clause = f" ORDER BY RANDOM() LIMIT {limit_size_for_type(self._provider._geo_column_type)}"
 
             self.final_query = (
                 "select * from ("

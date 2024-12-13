@@ -710,19 +710,19 @@ ORDER BY {column_name}"""
 
             if table_name is not None:
                 if (
-                    source_as_dict["connection_name"] == connection_name
-                    and source_as_dict["schema_name"] == schema_name
-                    and source_as_dict["table_name"] == table_name
+                    source_as_dict.get("connection_name") == connection_name
+                    and source_as_dict.get("schema_name") == schema_name
+                    and source_as_dict.get("table_name") == table_name
                 ):
                     self.refresh_data_provider(layer)
             elif schema_name is not None:
                 if (
-                    source_as_dict["connection_name"] == connection_name
-                    and source_as_dict["schema_name"] == schema_name
+                    source_as_dict.get("connection_name") == connection_name
+                    and source_as_dict.get("schema_name") == schema_name
                 ):
                     self.refresh_data_provider(layer)
             elif connection_name is not None:
-                if source_as_dict["connection_name"] == connection_name:
+                if source_as_dict.get("connection_name") == connection_name:
                     self.refresh_data_provider(layer)
 
     def refresh_data_provider(self, layer: QgsVectorLayer) -> None:

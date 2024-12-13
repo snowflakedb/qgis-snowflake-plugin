@@ -58,8 +58,8 @@ def filter_geo_columns(
             geo_columns.append(feat)
         if feat.attribute("DATA_TYPE") == "NUMBER":
             number_columns.append(feat)
-            table = f'{feat.attribute("TABLE_CATALOG")}.{feat.attribute("TABLE_SCHEMA")}.{feat.attribute("TABLE_NAME")}'
-            column = f'{table}.{feat.attribute("COLUMN_NAME")}'
+            table = f'"{feat.attribute("TABLE_CATALOG")}"."{feat.attribute("TABLE_SCHEMA")}"."{feat.attribute("TABLE_NAME")}"'
+            column = f'{table}."{feat.attribute("COLUMN_NAME")}"'
             number_queries.append(f"""
 (SELECT H3_IS_VALID_CELL({column})
 FROM {table}
@@ -91,10 +91,37 @@ def get_table_geo_columns(
     Raises:
         Any exceptions raised by the underlying data provider or database query execution.
     """
-    schema_selected_query = f"""SELECT DISTINCT TABLE_NAME, COLUMN_NAME, DATA_TYPE, TABLE_CATALOG, TABLE_SCHEMA
+    schema_selected_query = f"""SELECT DISTINCT TABLE_NAME, COLUMN_NAME, DATA_TYPE, TABLE_CATALOG, TABLE_SCHEMA, COMMENT
 FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_CATALOG ILIKE '{sf_data_provider.connection_params["database"]}'
 AND TABLE_SCHEMA ILIKE '{table_name}'
+ORDER BY TABLE_NAME, COLUMN_NAME"""
+
+    sf_data_provider.load_data(schema_selected_query, connection_name)
+    columns = sf_data_provider.get_feature_iterator()
+    return filter_geo_columns(sf_data_provider=sf_data_provider, connection_name=connection_name, columns=columns)
+
+
+def get_geo_columns(
+    sf_data_provider: SFDataProvider, connection_name: str
+) -> typing.List[QgsFeature]:
+    """
+    Retrieves a list of the geo columns of a database.
+
+    Args:
+        sf_data_provider (SFDataProvider): The connection to the database.
+        connection_name (str): The name of the database connection.
+
+    Returns:
+        List[QgsFeature]: A list of the features (geo columns).
+
+    Raises:
+        Any exceptions raised by the underlying data provider or database query execution.
+    """
+    schema_selected_query = f"""SELECT DISTINCT TABLE_NAME, COLUMN_NAME, DATA_TYPE, TABLE_CATALOG, TABLE_SCHEMA, COMMENT
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_CATALOG ILIKE '{sf_data_provider.connection_params["database"]}'
+AND DATA_TYPE IN ('GEOGRAPHY', 'GEOMETRY', 'NUMBER')
 ORDER BY TABLE_NAME, COLUMN_NAME"""
 
     sf_data_provider.load_data(schema_selected_query, connection_name)
@@ -477,11 +504,29 @@ def get_geo_column_type(
     return result_row[0] if result_row else None
 
 
+def limit_size_for_type(
+    column_type: str,
+) -> int:
+    """
+    The limit number of rows to be fetched from a table. Currently 50k by default, and 500k for H3 columns
+
+    Args:
+        column_type (str): The type of the column
+
+    Returns:
+        int: The size limit.
+    """
+    if column_type == "NUMBER":
+        return 500000  # 500k
+    return 50000;  # 50k
+
+
+
 def limit_size_for_table(
     context_information: dict,
 ) -> int:
     """
-    The limit number of rows to be fetched from a table. Currently 50k by default, and 500k for H3 columns
+    The limit number of rows to be fetched from a table. Currently based on type
 
     Args:
         context_information (dict): A dictionary containing context information, including the column type.
@@ -489,23 +534,19 @@ def limit_size_for_table(
     Returns:
         int: The size limit.
     """
-    if context_information["geom_type"] == "NUMBER":
-        return 500000  # 500k
-    return 50000;  # 50k
+    return limit_size_for_type(context_information["geom_type"])
 
 
 def check_table_exceeds_size(
     context_information: dict,
-    limit_size: int = 50000,
 ) -> bool:
     """
-    Checks if the number of rows in a specified table exceeds a given size limit.
+    Checks if the number of rows in a specified table exceeds the limit.
 
     Args:
         context_information (dict): A dictionary containing the context information
             required to connect to the database. It should include the keys
             "table_name" and "connection_name".
-        limit_size (int, optional): The size limit to check against. Defaults to 50000.
 
     Returns:
         bool: True if the number of rows in the table exceeds the limit size, False otherwise.
