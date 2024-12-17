@@ -1,7 +1,8 @@
 import typing
 
-from ..helpers.data_base import get_features_iterator
+from ..helpers.data_base import get_geo_columns
 from ..helpers.utils import get_authentification_information, get_qsettings
+from ..providers.sf_data_source_provider import SFDataProvider
 from qgis.core import QgsTask
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtCore import QVariant
@@ -32,7 +33,7 @@ class SFConnectTask(QgsTask):
             SELECT TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, COMMENT, COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_CATALOG = '{self.auth_information["database"].upper()}'
-            AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY')
+            AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY', 'NUMBER')
             ORDER BY TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE
             """
             self.connection_name = connection_name
@@ -50,19 +51,25 @@ class SFConnectTask(QgsTask):
             bool: True if the task is executed successfully, False otherwise.
         """
         try:
-            feature_iterator = get_features_iterator(
-                self.auth_information, self.query, self.connection_name
+            sf_data_provider = SFDataProvider(self.auth_information)
+            columns = get_geo_columns(
+                sf_data_provider, self.connection_name
             )
+            columns.sort(key=lambda x: (x.attribute("TABLE_CATALOG"), x.attribute("TABLE_SCHEMA"), x.attribute("TABLE_NAME")))
             current_schema = None
             current_item = None
             self.rows_items: typing.List[QStandardItem] = []
-            for feat in feature_iterator:
+            for feat in columns:
+
+                from qgis.core import QgsMessageLog
+                QgsMessageLog.logMessage(f"col {feat.attributes()}", 'SF Plugin')
+
                 if current_schema != feat.attribute("TABLE_SCHEMA"):
                     current_schema = feat.attribute("TABLE_SCHEMA")
                     current_item = QStandardItem(feat.attribute("TABLE_SCHEMA"))
                     self.rows_items.append(current_item)
                 srid = ""
-                if feat.attribute("DATA_TYPE") == "GEOGRAPHY":
+                if feat.attribute("DATA_TYPE") != "GEOMETRY":
                     srid = "4326"
 
                 if (
@@ -73,19 +80,22 @@ class SFConnectTask(QgsTask):
                 else:
                     standard_item_comment = QStandardItem(feat.attribute("COMMENT"))
 
+                data_type = feat.attribute("DATA_TYPE")
+                if data_type == "NUMBER":
+                    data_type = "H3GEO"
+
                 row_items = [
                     QStandardItem(feat.attribute("TABLE_SCHEMA")),
                     QStandardItem(feat.attribute("TABLE_NAME")),
                     standard_item_comment,
                     QStandardItem(feat.attribute("COLUMN_NAME")),
-                    QStandardItem(feat.attribute("DATA_TYPE")),
+                    QStandardItem(data_type),
                     QStandardItem(srid),
                 ]
 
                 if current_item is not None:
                     current_item.appendRow(row_items)
 
-            feature_iterator.close()
             return True
         except Exception as e:
             self.on_handle_error.emit(

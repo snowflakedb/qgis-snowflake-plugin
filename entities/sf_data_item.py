@@ -1,9 +1,10 @@
 from ..managers.sf_connection_manager import SFConnectionManager
 from ..helpers.data_base import (
     check_table_exceeds_size,
+    limit_size_for_table,
     get_column_iterator,
     get_features_iterator,
-    get_table_column_iterator,
+    get_table_geo_columns,
 )
 from ..helpers.messages import get_proceed_cancel_message_box
 from ..helpers.utils import (
@@ -17,6 +18,7 @@ from ..helpers.utils import (
     on_handle_warning,
     remove_connection,
 )
+from ..providers.sf_data_source_provider import SFDataProvider
 from ..tasks.sf_convert_column_to_layer_task import SFConvertColumnToLayerTask
 from ..ui.sf_connection_string_dialog import SFConnectionStringDialog
 from PyQt5.QtCore import pyqtSignal
@@ -48,6 +50,7 @@ class SFDataItem(QgsDataItem):
         clean_name: str,
         connection_name: str = None,
         geom_column: str = None,
+        geom_type: str = None,
     ) -> None:
         """
         Initializes a SFDataItem object.
@@ -70,6 +73,7 @@ class SFDataItem(QgsDataItem):
         self.message_handler.connect(self.on_message_handler)
         self.clean_name = clean_name
         self.geom_column = geom_column
+        self.geom_type = geom_type
         self._running_tasks = {}
 
     def createChildren(self) -> typing.List["QgsDataItem"]:
@@ -174,9 +178,6 @@ class SFDataItem(QgsDataItem):
             children.append(item)
 
     def create_schema_item(self, children: typing.List["SFDataItem"]) -> None:
-        feature_iterator = get_table_column_iterator(
-            self.settings, self.connection_name, self.clean_name
-        )
         """
         Creates schema items and appends them to the provided children list.
 
@@ -190,11 +191,18 @@ class SFDataItem(QgsDataItem):
         Returns:
             None
         """
+        auth_information = get_authentification_information(self.settings, self.connection_name)
+        sf_data_provider = SFDataProvider(auth_information)
+        columns = get_table_geo_columns(
+            sf_data_provider, self.connection_name, self.clean_name
+        )
+        columns.sort(key = lambda x: x.attribute(0))
+
         children_item_type = "table"
 
         items_metadata = []
 
-        for feat in feature_iterator:
+        for feat in columns:
             item_name = feat.attribute(0)
             if len(items_metadata) > 0:
                 last_child = children[-1]
@@ -211,6 +219,7 @@ class SFDataItem(QgsDataItem):
                 type=children_item_type,
                 connection_name=self.connection_name,
                 clean_name=feat.attribute(0),
+                geom_type=feat.attribute(2),
             )
             item.geom_column = feat.attribute(1)
             children.append(item)
@@ -220,7 +229,6 @@ class SFDataItem(QgsDataItem):
                     "column_name": feat.attribute(1),
                 }
             )
-        feature_iterator.close()
 
     def create_table_item(self, children: typing.List["SFDataItem"]) -> None:
         """
@@ -269,22 +277,23 @@ class SFDataItem(QgsDataItem):
         )
 
         for feat in feature_iterator:
+            is_geo_column = (table_data_item.geom_column == feat.attribute(0))
             if feat.attribute(1) in [
                 "GEOMETRY",
                 "GEOGRAPHY",
-            ] and table_data_item.geom_column != feat.attribute(0):
+            ] and not is_geo_column:
                 continue
             item = self._create_data_item(
                 name=feat.attribute(0),
                 type="field",
                 connection_name=self.connection_name,
                 clean_name=feat.attribute(0),
-                icon_path=f":/plugins/qgis-snowflake-connector/ui/images/fields/{self.get_field_type_svg_name(feat.attribute(1), feat.attribute(2))}.svg",
+                icon_path=f":/plugins/qgis-snowflake-connector/ui/images/fields/{self.get_field_type_svg_name(feat.attribute(1), feat.attribute(2), is_geo_column)}.svg",
             )
             children.append(item)
         feature_iterator.close()
 
-    def get_field_type_svg_name(self, field_type: str, field_pression: int) -> str:
+    def get_field_type_svg_name(self, field_type: str, field_pression: int, is_geo_column: bool) -> str:
         snowflake_types = {
             "ARRAY": "array",
             "BINARY": "binary",
@@ -303,7 +312,9 @@ class SFDataItem(QgsDataItem):
         }
 
         if field_type == "NUMBER":
-            if field_pression > 0:
+            if is_geo_column:
+                return "h3"
+            elif field_pression > 0:
                 return "float"
             return "integer"
         else:
@@ -348,7 +359,7 @@ FROM INFORMATION_SCHEMA.COLUMNS
 WHERE table_catalog = '{auth_information["database"]}'
 {schema_filter}
 {table_filter}
-AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY')
+AND DATA_TYPE in ('GEOGRAPHY', 'GEOMETRY', 'NUMBER')
 ORDER BY {column_name}"""
 
         return auth_information, column_name, children_item_type, query
@@ -361,6 +372,7 @@ ORDER BY {column_name}"""
         clean_name: str,
         path: str = None,
         icon_path: str = None,
+        geom_type: str = None,
     ) -> "SFDataItem":
         """
         Create a SFDataItem object.
@@ -385,6 +397,7 @@ ORDER BY {column_name}"""
             icon_path=icon_path,
             clean_name=clean_name,
             connection_name=connection_name,
+            geom_type=geom_type,
         )
 
         return item
@@ -409,8 +422,10 @@ ORDER BY {column_name}"""
                     "schema_name": schema_data_item.clean_name,
                     "table_name": self.clean_name,
                     "geo_column": self.geom_column,
+                    "geom_type": self.geom_type,
                 }
 
+                limit_size = limit_size_for_table(context_information=context_information)
                 table_exceeds_size = check_table_exceeds_size(
                     context_information=context_information,
                 )
@@ -421,7 +436,7 @@ ORDER BY {column_name}"""
                         (
                             "The dataset is too large. Please consider using "
                             '"Execute SQL" to limit the result set. If you click '
-                            '"Proceed," only a random sample of 50 thousand rows '
+                            f'"Proceed," only a random sample of {limit_size//1000} thousand rows '
                             "will be loaded."
                         ),
                     )
@@ -695,19 +710,19 @@ ORDER BY {column_name}"""
 
             if table_name is not None:
                 if (
-                    source_as_dict["connection_name"] == connection_name
-                    and source_as_dict["schema_name"] == schema_name
-                    and source_as_dict["table_name"] == table_name
+                    source_as_dict.get("connection_name") == connection_name
+                    and source_as_dict.get("schema_name") == schema_name
+                    and source_as_dict.get("table_name") == table_name
                 ):
                     self.refresh_data_provider(layer)
             elif schema_name is not None:
                 if (
-                    source_as_dict["connection_name"] == connection_name
-                    and source_as_dict["schema_name"] == schema_name
+                    source_as_dict.get("connection_name") == connection_name
+                    and source_as_dict.get("schema_name") == schema_name
                 ):
                     self.refresh_data_provider(layer)
             elif connection_name is not None:
-                if source_as_dict["connection_name"] == connection_name:
+                if source_as_dict.get("connection_name") == connection_name:
                     self.refresh_data_provider(layer)
 
     def refresh_data_provider(self, layer: QgsVectorLayer) -> None:

@@ -8,6 +8,8 @@ from typing import Any, Callable
 from PyQt5.QtCore import QDate, QDateTime, QMetaType, QTime
 
 # PyQGIS
+from ..helpers.data_base import limit_size_for_type
+from ..providers.sf_feature_source import SFFeatureSource
 from qgis.core import (
     QgsAbstractFeatureIterator,
     QgsCoordinateTransform,
@@ -15,10 +17,10 @@ from qgis.core import (
     QgsFeature,
     QgsFeatureRequest,
     QgsGeometry,
+    QgsMessageLog,
+    QgsPointXY,
 )
-
-from ..providers.sf_feature_source import SFFeatureSource
-
+import h3.api.basic_int as h3
 
 class SFFeatureIterator(QgsAbstractFeatureIterator):
     def __init__(
@@ -176,6 +178,11 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                         f'ST_INTERSECTS("{geom_column}", '
                         f"ST_GEOGRAPHYFROMWKT('{filter_rect.asWktPolygon()}'))"
                     )
+                if self._provider._geometry_type == "NUMBER":
+                    filter_geom_clause = (
+                        f'ST_INTERSECTS(H3_CELL_TO_BOUNDARY("{geom_column}"), '
+                        f"ST_GEOGRAPHYFROMWKT('{filter_rect.asWktPolygon()}'))"
+                    )
                 if filter_geom_clause != "":
                     filter_geom_clause = f"and {filter_geom_clause}"
 
@@ -188,6 +195,9 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                         where_clause += f" and {clause}"
 
             geom_query = f'ST_ASWKB("{geom_column}"), "{geom_column}", '
+            if self._provider._geo_column_type == "NUMBER":
+                geom_query = f'"{geom_column}", "{geom_column}", '
+
             self._request_no_geometry = (
                 self._request.flags() & QgsFeatureRequest.Flag.NoGeometry
             )
@@ -200,10 +210,12 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                 index = self._provider._fields[self._provider.primary_key()].name()
 
             filter_geo_type = f"ST_ASGEOJSON(\"{geom_column}\"):type ILIKE '{self._provider._geometry_type}'"
+            if self._provider._geo_column_type == "NUMBER":
+                filter_geo_type = f"H3_IS_VALID_CELL(\"{geom_column}\")"
 
             order_limit_clause = ""
             if self._provider._is_limited_unordered:
-                order_limit_clause = " ORDER BY RANDOM() LIMIT 50000"
+                order_limit_clause = f" ORDER BY RANDOM() LIMIT {limit_size_for_type(self._provider._geo_column_type)}"
 
             self.final_query = (
                 "select * from ("
@@ -270,7 +282,12 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
 
                 if not self._request_no_geometry:
                     geometry = QgsGeometry()
-                    geometry.fromWkb(next_result[self.index_geom_column])
+                    if self._provider._geo_column_type == "NUMBER":
+                        cell = next_result[self.index_geom_column]
+                        hexVertexCoords = h3.cell_to_boundary(cell)
+                        geometry = QgsGeometry.fromPolygonXY([[QgsPointXY(lon, lat) for lat, lon in hexVertexCoords], ])
+                    else:
+                        geometry.fromWkb(next_result[self.index_geom_column])
                     f.setGeometry(geometry)
                     self.geometryToDestinationCrs(f, self._transform)
 
@@ -298,8 +315,6 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                             for indx, field_name in enumerate(
                                 self._provider.fields().names()
                             ):
-                                if field_name == self._provider._column_geom:
-                                    continue
                                 column_value = next_result[
                                     desc_result.index(field_name)
                                 ]
@@ -308,7 +323,7 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                                 )
                                 f.setAttribute(indx, converted_attribute)
                         except Exception as e:
-                            print(f"this is an error: {str(e)}")
+                            QgsMessageLog.logMessage(f"Error fetching feature: {str(e)}", 'Snowflake Plugin')
 
                 else:
                     if (
@@ -333,7 +348,7 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
 
             self._index += 1
         except Exception as e:
-            print(f"Error fetching feature: {str(e)}")
+            QgsMessageLog.logMessage(f"Error fetching feature: {str(e)}", 'Snowflake Plugin')
         return True
 
     def nextFeatureFilterExpression(self, f: QgsFeature) -> bool:

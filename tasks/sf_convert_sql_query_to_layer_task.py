@@ -48,18 +48,18 @@ class SFConvertSQLQueryToLayerTask(QgsTask):
             bool: True if the task is executed successfully, False otherwise.
         """
         try:
-            srid = get_srid_from_sql_query_geo_column(
-                query=self.query,
-                context_information=self.context_information,
-            )
-            geo_type_list = get_type_from_query_geo_column(
-                query=self.query,
-                context_information=self.context_information,
-            )
             geo_column_type = get_geo_column_type_from_query(
                 query=self.query,
                 context_information=self.context_information,
             )
+            srid = get_srid_from_sql_query_geo_column(
+                query=self.query,
+                context_information=self.context_information,
+            ) if geo_column_type == "GEOMETRY" else 4326
+            geo_type_list = get_type_from_query_geo_column(
+                query=self.query,
+                context_information=self.context_information,
+            ) if geo_column_type != "NUMBER" else ["POLYGON"]
             for geo_type in geo_type_list:
                 uri = (
                     f"connection_name={self.connection_name} "
