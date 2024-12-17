@@ -22,6 +22,7 @@ from qgis.core import (
 )
 import h3.api.basic_int as h3
 
+
 class SFFeatureIterator(QgsAbstractFeatureIterator):
     def __init__(
         self,
@@ -211,7 +212,7 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
 
             filter_geo_type = f"ST_ASGEOJSON(\"{geom_column}\"):type ILIKE '{self._provider._geometry_type}'"
             if self._provider._geo_column_type == "NUMBER":
-                filter_geo_type = f"H3_IS_VALID_CELL(\"{geom_column}\")"
+                filter_geo_type = f'H3_IS_VALID_CELL("{geom_column}")'
 
             order_limit_clause = ""
             if self._provider._is_limited_unordered:
@@ -285,7 +286,11 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                     if self._provider._geo_column_type == "NUMBER":
                         cell = next_result[self.index_geom_column]
                         hexVertexCoords = h3.cell_to_boundary(cell)
-                        geometry = QgsGeometry.fromPolygonXY([[QgsPointXY(lon, lat) for lat, lon in hexVertexCoords], ])
+                        geometry = QgsGeometry.fromPolygonXY(
+                            [
+                                [QgsPointXY(lon, lat) for lat, lon in hexVertexCoords],
+                            ]
+                        )
                     else:
                         geometry.fromWkb(next_result[self.index_geom_column])
                     f.setGeometry(geometry)
@@ -311,10 +316,12 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                             )
                             f.setAttribute(attr_idx, attribute)
                     else:
-                        try:
-                            for indx, field_name in enumerate(
-                                self._provider.fields().names()
-                            ):
+                        for indx, field_name in enumerate(
+                            self._provider.fields().names()
+                        ):
+                            try:
+                                if field_name == self._provider._column_geom:
+                                    continue
                                 column_value = next_result[
                                     desc_result.index(field_name)
                                 ]
@@ -322,8 +329,10 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
                                     column_value
                                 )
                                 f.setAttribute(indx, converted_attribute)
-                        except Exception as e:
-                            QgsMessageLog.logMessage(f"Error fetching feature: {str(e)}", 'Snowflake Plugin')
+                            except Exception as e:
+                                print(
+                                    f"Feature Iterator Error - Conversion issue: {str(e)}"
+                                )
 
                 else:
                     if (
@@ -348,7 +357,9 @@ class SFFeatureIterator(QgsAbstractFeatureIterator):
 
             self._index += 1
         except Exception as e:
-            QgsMessageLog.logMessage(f"Error fetching feature: {str(e)}", 'Snowflake Plugin')
+            QgsMessageLog.logMessage(
+                f"Error fetching feature: {str(e)}", "Snowflake Plugin"
+            )
         return True
 
     def nextFeatureFilterExpression(self, f: QgsFeature) -> bool:
