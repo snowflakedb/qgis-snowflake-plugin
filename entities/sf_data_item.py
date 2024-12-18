@@ -708,6 +708,9 @@ ORDER BY {column_name}"""
             source_as_dict = decodeUri(layer.source())
             connection_name, schema_name, table_name = get_path_nodes(self.path())
 
+            if "connection_name" not in source_as_dict:
+                continue
+
             if table_name is not None:
                 if (
                     source_as_dict.get("connection_name") == connection_name
